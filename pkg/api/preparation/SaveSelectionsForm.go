@@ -29,7 +29,7 @@ func SaveSelectionsForm(c *gin.Context) {
 	}
 
 	// Get today's runners for the given event_name and event_date
-	rows, err := db.Query("SELECT selection_link, selection_id, selection_name FROM TodayRunners WHERE  DATE(event_date) < DATE('now')")
+	rows, err := db.Query("SELECT selection_link, selection_id, selection_name FROM TodayRunners WHERE  DATE(event_date) = DATE('now')")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

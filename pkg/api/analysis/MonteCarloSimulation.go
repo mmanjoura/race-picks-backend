@@ -12,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
-
 )
 
 type Selection struct {
@@ -21,6 +20,7 @@ type Selection struct {
 	EventName string `json:"event_name"`
 	EventTime string `json:"event_time"`
 	Distance  string `json:"event_distance"`
+	Odds      string `json:"odds"`
 }
 
 type SimulationResult struct {
@@ -28,6 +28,7 @@ type SimulationResult struct {
 	SelectionName  string  `json:"selection_name"`
 	EventName      string  `json:"event_name"`
 	EventTime      string  `json:"event_time"`
+	Odds           string  `json:"odds"`
 	WinProbability float64 `json:"win_probability"`
 }
 
@@ -40,16 +41,16 @@ func MonteCarloSimulation(c *gin.Context) {
 		return
 	}
 
-	
 	// Get today's runners for the given event_name and event_date
 	rows, err := db.Query(`
 		SELECT selection_id, 
 			   selection_name,
 			   event_name,
-			   event_time
+			   event_time,
+			   price
 	
 		FROM TodayRunners	 
-		WHERE event_name = ? AND DATE(event_date) < DATE('now') AND event_time = ?`, 
+		WHERE event_name = ? AND DATE(event_date) = DATE('now') AND event_time = ?`,
 		modelparams.EventName, modelparams.EventTime)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -60,7 +61,7 @@ func MonteCarloSimulation(c *gin.Context) {
 	var selections []Selection
 	for rows.Next() {
 		var selection Selection
-		if err := rows.Scan(&selection.ID, &selection.Name, &selection.EventName, &selection.EventTime); err != nil {
+		if err := rows.Scan(&selection.ID, &selection.Name, &selection.EventName, &selection.EventTime, &selection.Odds); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -90,6 +91,7 @@ func MonteCarloSimulation(c *gin.Context) {
 			SelectionName:  selection.Name,
 			EventName:      selection.EventName,
 			EventTime:      selection.EventTime,
+			Odds:           selection.Odds,
 			WinProbability: winProbability,
 		})
 	}
@@ -106,9 +108,9 @@ func MonteCarloSimulation(c *gin.Context) {
 func simulateRace(selections []Selection, db *sql.DB, rng *rand.Rand, eventDistance string) int64 {
 	// Define probabilities for each selection based on historical data
 	probabilities := make(map[int64]float64)
-	
+
 	for _, selection := range selections {
-	
+
 		probability := calculateProbability(selection.ID, eventDistance, db)
 		probabilities[selection.ID] = probability
 	}
@@ -141,7 +143,7 @@ func calculateProbability(selectionID int64, distance string, db *sql.DB) float6
 			FROM SelectionsForm
 			WHERE selection_id = ?
 			GROUP BY selection_id, position, rating, distance
-			HAVING COUNT(*) < 7 `, selectionID)
+			`, selectionID)
 	if err != nil {
 		fmt.Println("Error querying historical data:", err)
 		return 0.0
@@ -200,7 +202,7 @@ func parseDistance(distanceStr string) int {
 
 	for _, part := range parts {
 		if strings.HasSuffix(part, "m") {
-			
+
 			// Convert miles to yards (1 mile = 1760 yards)
 			miles, _ := strconv.Atoi(strings.TrimSuffix(part, "m"))
 			yards += miles * 1760

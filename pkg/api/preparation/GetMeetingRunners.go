@@ -43,6 +43,9 @@ func GetMeetingRunners(c *gin.Context) {	db := database.Database.DB
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		if selection.ID == 0 {
+			continue
+		}
 		selections = append(selections, selection)
 	}
 
