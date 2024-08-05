@@ -23,7 +23,7 @@ func ConnectDatabase() {
 
 	var err error
 
-	db, err := sql.Open("sqlite3", "./race-picks-backend.db")
+	db, err := sql.Open("sqlite3", "./winners-ai.db")
 
 	if err != nil {
 		log.Fatal("Failed to connect to the database! \n", err)

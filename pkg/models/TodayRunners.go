@@ -6,6 +6,7 @@ import (
 
 type TodayRunners struct {
 	ID            int       `json:"id"`
+	SelectionLink string    `json:"selection_link"`
 	SelectionName string    `json:"selection_name"`
 	EventTime     string    `json:"event_time"`
 	EventName     string    `json:"event_name"`

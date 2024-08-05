@@ -37,14 +37,19 @@ func InitRouter() *gin.Engine {
 		v1.GET("/auth/account", users.Account)
 
 		// preparation routes
+		
+		v1.POST("/preparation/SaveSelectionsForm", preparation.SaveSelectionsForm)
 		v1.POST("/preparation/ScrapeRacesInfo", preparation.ScrapeRacesInfo)
 		v1.POST("/preparation/SaveMarketData", preparation.SaveMarketData)
-		v1.POST("/preparation/SaveAnalysisData", preparation.SaveAnalysisData)
+		// v1.POST("/preparation/SaveAnalysisData", preparation.SaveAnalysisData)
 		v1.GET("/preparation/GetMarketData", preparation.GetMarketData)
 		v1.GET("/preparation/GetTodayMeeting", preparation.GetTodayMeeting)
 		v1.GET("/preparation/GetMeetingRunners", preparation.GetMeetingRunners)
 
-		v1.POST("/analysis/GetAverages_0", analysis.GetAverages_0)
+		// v1.POST("/analysis/GetAverages_0", analysis.GetAverages_0)
+		// v1.POST("/analysis/GetAverages_3", analysis.GetAverages_3)
+		v1.POST("/analysis/MonteCarloSimulation", analysis.MonteCarloSimulation)
+		
 	}
 
 	return r
