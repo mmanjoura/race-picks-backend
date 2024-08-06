@@ -12,16 +12,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
+	"github.com/mmanjoura/race-picks-backend/pkg/api/common"
 )
 
-type Selection struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	EventName string `json:"event_name"`
-	EventTime string `json:"event_time"`
-	Distance  string `json:"event_distance"`
-	Odds      string `json:"odds"`
-}
+
 
 type SimulationResult struct {
 	SelectionID    int64   `json:"selection_id"`
@@ -34,7 +28,7 @@ type SimulationResult struct {
 
 func MonteCarloSimulation(c *gin.Context) {
 	db := database.Database.DB
-	var modelparams Selection
+	var modelparams common.Selection
 
 	if err := c.ShouldBindJSON(&modelparams); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -58,9 +52,9 @@ func MonteCarloSimulation(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var selections []Selection
+	var selections []common.Selection
 	for rows.Next() {
-		var selection Selection
+		var selection common.Selection
 		if err := rows.Scan(&selection.ID, &selection.Name, &selection.EventName, &selection.EventTime, &selection.Odds); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -105,7 +99,7 @@ func MonteCarloSimulation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": simulationResults})
 }
 
-func simulateRace(selections []Selection, db *sql.DB, rng *rand.Rand, eventDistance string) int64 {
+func simulateRace(selections []common.Selection, db *sql.DB, rng *rand.Rand, eventDistance string) int64 {
 	// Define probabilities for each selection based on historical data
 	probabilities := make(map[int64]float64)
 
@@ -173,11 +167,11 @@ func calculateProbability(selectionID int64, distance string, db *sql.DB) float6
 		}
 
 		// Compare distances (use a scaling factor based on distance difference)
-		historicalDistance := parseDistance(distanceStr)
-		currentDistance := parseDistance(distance)
+		historicalDistance := common.ParseDistance(distanceStr)
+		currentDistance := common.ParseDistance(distance)
 
 		// Weight by how close the historical distance is to the current distance
-		distanceWeight := 1.0 / (1.0 + float64(abs(historicalDistance-currentDistance))/1000.0)
+		distanceWeight := 1.0 / (1.0 + float64(common.Abs(historicalDistance-currentDistance))/1000.0)
 		totalScore *= distanceWeight
 	}
 
@@ -187,42 +181,4 @@ func calculateProbability(selectionID int64, distance string, db *sql.DB) float6
 
 	// Normalize the score to be used as a probability
 	return totalScore / float64(totalRuns)
-}
-
-func parseDistance(distanceStr string) int {
-	// Example formats:
-	// "2m 4f 97y" -> 4577 yards
-	// "2m 3f 210y" -> 4482 yards
-	// "1m 6f" -> 3520 yards
-	// "6f" -> 1320 yards
-	var yards int
-
-	// Split into components
-	parts := strings.Fields(distanceStr)
-
-	for _, part := range parts {
-		if strings.HasSuffix(part, "m") {
-
-			// Convert miles to yards (1 mile = 1760 yards)
-			miles, _ := strconv.Atoi(strings.TrimSuffix(part, "m"))
-			yards += miles * 1760
-		} else if strings.HasSuffix(part, "f") {
-			// Convert furlongs to yards (1 furlong = 220 yards)
-			furlongs, _ := strconv.Atoi(strings.TrimSuffix(part, "f"))
-			yards += furlongs * 220
-		} else if strings.HasSuffix(part, "y") {
-			// Convert yards directly
-			additionalYards, _ := strconv.Atoi(strings.TrimSuffix(part, "y"))
-			yards += additionalYards
-		}
-	}
-
-	return yards
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
 }

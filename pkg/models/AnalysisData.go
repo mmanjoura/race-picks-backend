@@ -9,6 +9,7 @@ type AnalysisData struct {
 	SelectionID         int       `json:"selection_id"`
 	SelectionName       string    `json:"selection_name"`
 	NumRuns             int       `json:"num_runs"`
+	LastRunDate         string    `json:"last_run_date"`
 	Duration            int       `json:"duration"`
 	WinCount            int       `json:"win_count"`
 	AvgPosition         float64   `json:"avg_position"`
