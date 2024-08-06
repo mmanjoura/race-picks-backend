@@ -9,6 +9,8 @@ type AnalysisData struct {
 	SelectionID         int       `json:"selection_id"`
 	SelectionName       string    `json:"selection_name"`
 	NumRuns             int       `json:"num_runs"`
+	Duration            int       `json:"duration"`
+	WinCount            int       `json:"win_count"`
 	AvgPosition         float64   `json:"avg_position"`
 	AvgRating           float64   `json:"avg_rating"`
 	AvgDistanceFurlongs float64   `json:"avg_distance_furlongs"`

@@ -57,27 +57,12 @@ func GetMeetingRunners(c *gin.Context) {	db := database.Database.DB
 							selection_id,
 							selection_name,							
 							COUNT(*) AS num_runs,
-							AVG(CAST(SUBSTR(position, 1, INSTR(position, '/') - 1) AS INTEGER)) AS avg_position,
+							MAX(race_date) - MIN(race_date) AS duration,
+							 COUNT(CASE WHEN position = '1' THEN 1 END) AS win_count,
+							AVG(position) AS avg_position,
 							AVG(rating) AS avg_rating,
-							AVG(
-								CASE
-									WHEN distance LIKE '%y' THEN
-										-- Convert distance to furlongs
-										CAST(SUBSTR(distance, 1, INSTR(distance, 'm') - 1) AS INTEGER) * 8
-										+ CAST(SUBSTR(distance, INSTR(distance, 'm') + 1, INSTR(distance, 'f') - INSTR(distance, 'm') - 1) AS INTEGER)
-										+ CAST(REPLACE(SUBSTR(distance, INSTR(distance, 'f') + 1), 'y', '') AS INTEGER) / 220.0
-									WHEN distance LIKE '%f' THEN
-										-- Distance is already in furlongs
-										CAST(REPLACE(distance, 'f', '') AS INTEGER)
-									ELSE
-										-- Convert distance in meters to furlongs
-										CAST(REPLACE(distance, 'm', '') AS INTEGER) / 201.168
-								END
-							) AS avg_distance_furlongs,
-							AVG(
-								CAST(SUBSTR(sp_odds, 1, INSTR(sp_odds, '/') - 1) AS FLOAT) / 
-								CAST(SUBSTR(sp_odds, INSTR(sp_odds, '/') + 1) AS FLOAT) + 1
-							) AS avg_odds
+							AVG(distance) AS avg_distance_furlongs
+						
 						FROM
 							SelectionsForm	WHERE selection_id = ? order by num_runs asc`, selection.ID)
 		if err != nil {
@@ -95,10 +80,11 @@ func GetMeetingRunners(c *gin.Context) {	db := database.Database.DB
 				&data.SelectionID,
 				&data.SelectionName,
 				&data.NumRuns,
+				&data.Duration,
+				&data.WinCount,
 				&data.AvgPosition,
 				&data.AvgRating,
 				&data.AvgDistanceFurlongs,
-				&data.AvgOdds,
 			)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
