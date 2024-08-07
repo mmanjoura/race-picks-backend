@@ -1,8 +1,10 @@
 package preparation
 
 import (
-	"fmt"
+
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,16 +33,6 @@ func ScrapeRacesInfo(c *gin.Context) {
 	}
 
 	for _, horseInforamtion := range horseInforamtions {
-		selectionId, err := getSelectionId(c, horseInforamtion.SelectionName)
-		if err != nil {
-			if err.Error() == fmt.Sprintf("no horse found with the name: %s", horseInforamtion.SelectionName) {
-				continue
-			}
-		}
-		// Do not save the horse information if the selectionId is 0
-		// if selectionId == 0 {
-		// 	continue
-		// }
 
 		// Save horse information to DB
 		result, err := db.ExecContext(c, `
@@ -56,7 +48,7 @@ func ScrapeRacesInfo(c *gin.Context) {
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			horseInforamtion.SelectionLink, // Include the selection link
-			selectionId,
+			horseInforamtion.SelectionID,
 			horseInforamtion.SelectionName,
 			horseInforamtion.EventTime,
 			horseInforamtion.EventName,
@@ -71,22 +63,6 @@ func ScrapeRacesInfo(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Horse information saved successfully"})
-}
-
-
-func getSelectionId(c *gin.Context, horseName string) (int, error) {
-	db := database.Database.DB
-
-	var selectionId int
-	err := db.QueryRowContext(c, "SELECT selection_id FROM MarketData WHERE selection_name = ?", horseName).Scan(&selectionId)
-	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return 0, nil
-		}
-		return 0, err
-	}
-
-	return selectionId, nil
 }
 
 func getInfo() ([]models.TodayRunners, error) {
@@ -107,21 +83,45 @@ func getInfo() ([]models.TodayRunners, error) {
 		eventTime := parts[0]
 		eventName := parts[1]
 
+		// Compile the regular expression to match digits at the end of the string
+		re := regexp.MustCompile(`/horse/(\d+)$`)
+
+		// Find the substring that matches the pattern and extract the horse_Id
+		match := re.FindStringSubmatch(selectionLink)
+		selectionId := 0
+		if len(match) > 1 {
+			selectionId, _ = strconv.Atoi(match[1]) 
+
+		} 
 		horse := models.TodayRunners{
 			SelectionName: name,
 			SelectionLink: selectionLink, // Add the selection link to the struct
 			EventTime:     eventTime,
 			EventName:     eventName,
-			Price:         price,
+			Price:         cleanString(price),
+			SelectionID: selectionId,
 		}
 
 		horses = append(horses, horse)
 	})
 
 	// Start scraping the URL
-	c.Visit("https://www.sportinglife.com/racing/abc-guide/tomorrow")
-	// c.Visit("https://www.sportinglife.com/racing/abc-guide/abc-guide")
+	// c.Visit("https://www.sportinglife.com/racing/abc-guide/tomorrow")
+	c.Visit("https://www.sportinglife.com/racing/abc-guide/abc-guide")
 
 	return horses, nil
 }
 
+func cleanString(input string) string {
+	// Split the string by "/"
+	parts := strings.Split(input, "/")
+
+	// Check if there are at least two parts
+	if len(parts) >= 2 {
+		// Keep only the first and last part
+		parts = []string{parts[0], parts[len(parts)-1]}
+	}
+
+	// Join the parts back together with "/"
+	return strings.Join(parts, "/")
+}

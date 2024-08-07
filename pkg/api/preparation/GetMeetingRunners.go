@@ -1,3 +1,13 @@
+// WITH RankedRaces AS (
+//     SELECT race_date, selection_id ,
+//            ROW_NUMBER() OVER (PARTITION BY selection_id ORDER BY race_date DESC) AS rn
+//     FROM SelectionsForm where selection_id = 1093759
+// )
+// SELECT *
+// FROM RankedRaces
+// WHERE rn <= 2
+// ORDER BY selection_id, race_date DESC;
+
 package preparation
 
 import (
@@ -89,8 +99,7 @@ func GetMeetingRunners(c *gin.Context) {	db := database.Database.DB
 				&data.AvgDistanceFurlongs,
 			)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
+			continue
 			}
 			
 		}
