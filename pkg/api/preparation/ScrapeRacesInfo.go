@@ -14,14 +14,6 @@ import (
 	"github.com/mmanjoura/race-picks-backend/pkg/models"
 )
 
-/// ScrapeRacesInfo godoc
-// @Summary Scrape today meeting from the website
-// @Description Scrape today meeting from the website
-// @Tags ScrapeRacesInfo
-// @Accept  json
-// @Produce  json
-// @Success 200 {object} ScrapeRacesInfo
-// @Router /analytics/ScrapeRacesInfo [POST]
 
 func ScrapeRacesInfo(c *gin.Context) {
 	db := database.Database.DB
@@ -36,7 +28,7 @@ func ScrapeRacesInfo(c *gin.Context) {
 
 		// Save horse information to DB
 		result, err := db.ExecContext(c, `
-		INSERT INTO TodayRunners (
+		INSERT INTO EventRunners (
 			selection_link,
 			selection_id,
 			selection_name,	

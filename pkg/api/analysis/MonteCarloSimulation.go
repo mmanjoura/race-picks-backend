@@ -16,7 +16,6 @@ import (
 )
 
 
-
 type SimulationResult struct {
 	SelectionID    int64   `json:"selection_id"`
 	SelectionName  string  `json:"selection_name"`
@@ -43,7 +42,7 @@ func MonteCarloSimulation(c *gin.Context) {
 			   event_time,
 			   price
 	
-		FROM TodayRunners	 
+		FROM EventRunners	 
 		WHERE event_name = ? AND DATE(event_date) = DATE('now') AND event_time = ?`,
 		modelparams.EventName, modelparams.EventTime)
 	if err != nil {

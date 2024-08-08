@@ -1,17 +1,9 @@
-// WITH RankedRaces AS (
-//     SELECT race_date, selection_id ,
-//            ROW_NUMBER() OVER (PARTITION BY selection_id ORDER BY race_date DESC) AS rn
-//     FROM SelectionsForm where selection_id = 1093759
-// )
-// SELECT *
-// FROM RankedRaces
-// WHERE rn <= 2
-// ORDER BY selection_id, race_date DESC;
 
 package preparation
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
 	"github.com/mmanjoura/race-picks-backend/pkg/models"
@@ -19,25 +11,35 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// / GetMeetingRunners godoc
-// @Summary Get the meeting runners
-// @Description Get the meeting runners
-// @Tags GetMeetingRunners
-// @Accept  json
-// @Produce  json
-// @Param event_name query string true "Event Name"
-// @Success 200 {object} models.TodayRunners
-// @Router /analytics/meeting-runners [get]
-func GetMeetingRunners(c *gin.Context) {	db := database.Database.DB
+type DaySince struct {
+    RaceDate    time.Time `json:"race_date"`
+    SelectionID int       `json:"selection_id"`
+}
+
+type Diff struct {
+	DaySince
+	DateDiffInDays int `json:"date_diff_in_days"`
+}
+
+func GetMeetingRunners(c *gin.Context) {	
+	db := database.Database.DB
 	type Selection struct {
 		ID   int
 		Name string
+		EventDate time.Time
 	}
 	eventName := c.Query("event_name")
 	eventTime := c.Query("event_time")
+	eventDate := c.Query("date")
 
 	// Get today's runners for the given event_name and event_date
-	rows, err := db.Query("SELECT selection_id FROM TodayRunners WHERE  event_name = ? and event_time = ?", eventName, eventTime)
+	rows, err := db.Query(`
+			SELECT 	selection_id, 
+					selection_name, 
+					event_date FROM 
+					EventRunners WHERE  
+					event_name = ? and event_time = ? and DATE(event_date) = ?` , 
+					eventName, eventTime, eventDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -48,7 +50,11 @@ func GetMeetingRunners(c *gin.Context) {	db := database.Database.DB
 	var selections []Selection
 	for rows.Next() {
 		var selection Selection
-		err := rows.Scan(&selection.ID)
+		err := rows.Scan(
+			&selection.ID,
+			&selection.Name,
+			&selection.EventDate,			
+		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -104,6 +110,18 @@ func GetMeetingRunners(c *gin.Context) {	db := database.Database.DB
 			
 		}
 		analysisData = append(analysisData, data)
+
+
+	}
+
+	for i, data := range analysisData {
+		recoveryDays, err := getRecoveryDays(data.SelectionID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		analysisData[i].RecoveryDays = recoveryDays
+
 	}
 
 	// Check for errors from iterating over rows.
@@ -115,3 +133,59 @@ func GetMeetingRunners(c *gin.Context) {	db := database.Database.DB
 	// Return the meeting data
 c.JSON(http.StatusOK, gin.H{"meetingData": analysisData})
 }
+
+
+
+
+func getRecoveryDays(selectionID int) (int, error) {
+	db := database.Database.DB
+
+	// Execute the query with WITH daysSince as subquery
+	rows, err := db.Query(`
+		select 	race_date, 
+				selection_id from   
+		SelectionsForm where selection_id = ? 
+		order by race_date DESC limit 2;
+	`, selectionID)
+
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	var daysSince []DaySince
+
+	// Iterate over the rows and scan the result into the DaySince struct
+	for rows.Next() {
+		var race DaySince
+		err := rows.Scan(
+			&race.RaceDate,
+			&race.SelectionID,
+		)
+		if err != nil {
+			return 0, err
+		}
+		daysSince = append(daysSince, race)
+	}
+
+	// Check for errors after iterating through the rows
+	if err = rows.Err(); err != nil {
+		return 0, err
+	}
+
+	// Calculate the difference between the two dates, if there are at least 2 races
+	if len(daysSince) == 2 {
+		// Normalize dates by removing the time component
+		raceDate1 := time.Date(daysSince[0].RaceDate.Year(), daysSince[0].RaceDate.Month(), daysSince[0].RaceDate.Day(), 0, 0, 0, 0, time.UTC)
+		raceDate2 := time.Date(daysSince[1].RaceDate.Year(), daysSince[1].RaceDate.Month(), daysSince[1].RaceDate.Day(), 0, 0, 0, 0, time.UTC)
+
+		dateDiff := int(raceDate1.Sub(raceDate2).Hours() / 24)
+
+		return dateDiff, nil
+	}
+
+	// If there is only one race or none, we cannot calculate a meaningful difference
+	return 0, nil
+}
+
+

@@ -7,7 +7,7 @@ import (
 type SelectionsForm struct {
 	ID          int       `json:"id" gorm:"primaryKey;autoIncrement"`
 	SelectionID int       `json:"selection_id"`
-	RaceDate    string    `json:"race_date"`
+	RaceDate    time.Time `json:"race_date"`
 	Position    string    `json:"position"`
 	Rating      int       `json:"rating"`
 	RaceType    string    `json:"race_type"`

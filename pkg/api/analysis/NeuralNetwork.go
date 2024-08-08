@@ -56,7 +56,7 @@ func NeuralNetwork_Prediction(c *gin.Context) {
 			   event_time,
 			   distance,
 			   odds
-		FROM TodayRunners
+		FROM EventRunners
 		WHERE event_name = ? AND DATE(event_date) = DATE('now') AND event_time = ?`,
 		modelparams.EventName, modelparams.EventTime)
 	if err != nil {

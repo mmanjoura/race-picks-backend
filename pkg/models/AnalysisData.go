@@ -8,6 +8,7 @@ type AnalysisData struct {
 	ID                  int       `json:"id"`
 	SelectionID         int       `json:"selection_id"`
 	SelectionName       string    `json:"selection_name"`
+	RecoveryDays		int       `json:"recovery_days"`
 	NumRuns             int       `json:"num_runs"`
 	LastRunDate         string    `json:"last_run_date"`
 	Duration            int       `json:"duration"`
