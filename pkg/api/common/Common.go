@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 )
+
 type Selection struct {
 	ID        int64  `json:"id"`
 	Name      string `json:"name"`
@@ -11,6 +12,7 @@ type Selection struct {
 	EventTime string `json:"event_time"`
 	Distance  string `json:"event_distance"`
 	Odds      string `json:"odds"`
+	EventDate string `json:"event_date"`
 }
 
 func ParseDistance(distanceStr string) int {
@@ -60,10 +62,9 @@ func ParseOdds(oddsStr string) float64 {
 			numerator, err1 := strconv.ParseFloat(parts[0], 64)
 			denominator, err2 := strconv.ParseFloat(parts[1], 64)
 			if err1 == nil && err2 == nil && denominator != 0 {
-				return numerator / denominator + 1
+				return numerator/denominator + 1
 			}
 		}
 	}
 	return 0.0
 }
-

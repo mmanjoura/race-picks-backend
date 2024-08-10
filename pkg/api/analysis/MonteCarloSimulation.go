@@ -15,7 +15,6 @@ import (
 	"github.com/mmanjoura/race-picks-backend/pkg/api/common"
 )
 
-
 type SimulationResult struct {
 	SelectionID    int64   `json:"selection_id"`
 	SelectionName  string  `json:"selection_name"`
@@ -43,8 +42,8 @@ func MonteCarloSimulation(c *gin.Context) {
 			   price
 	
 		FROM EventRunners	 
-		WHERE event_name = ? AND DATE(event_date) = DATE('now') AND event_time = ?`,
-		modelparams.EventName, modelparams.EventTime)
+		WHERE event_name = ? AND DATE(event_date) = ? AND event_time = ?`,
+		modelparams.EventName, modelparams.EventDate, modelparams.EventTime)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -103,7 +102,6 @@ func simulateRace(selections []common.Selection, db *sql.DB, rng *rand.Rand, eve
 	probabilities := make(map[int64]float64)
 
 	for _, selection := range selections {
-
 		probability := calculateProbability(selection.ID, eventDistance, db)
 		probabilities[selection.ID] = probability
 	}
@@ -127,26 +125,51 @@ func simulateRace(selections []common.Selection, db *sql.DB, rng *rand.Rand, eve
 }
 
 func calculateProbability(selectionID int64, distance string, db *sql.DB) float64 {
-	// Query historical data for this selection
-	var totalRuns int
-	var totalScore float64
-
+	// Query historical data for this selection, including all parameters
 	rows, err := db.Query(`
-		SELECT COUNT(*) AS count, position, rating, distance 
-			FROM SelectionsForm
-			WHERE selection_id = ?
-			GROUP BY selection_id, position, rating, distance
-			`, selectionID)
+		SELECT 
+			COUNT(*) AS count, 
+			position, 
+			rating, 
+			distance, 
+			sp_odds,
+			AVG(recovery_days) AS avg_recovery_days,
+			AVG(num_runs) AS avg_num_runs,
+			AVG(years_running) AS avg_years_running,
+			AVG(win_count) AS avg_win_count,
+			AVG(avg_position) AS avg_avg_position,
+			AVG(avg_distance_furlongs) AS avg_avg_distance_furlongs
+		FROM SelectionsForm
+		WHERE selection_id = ?
+		GROUP BY selection_id, position, rating, distance, sp_odds
+	`, selectionID)
 	if err != nil {
 		fmt.Println("Error querying historical data:", err)
 		return 0.0
 	}
 	defer rows.Close()
 
+	var totalRuns int
+	var totalScore float64
+
 	for rows.Next() {
 		var positionStr, distanceStr string
 		var rating, count int
-		if err := rows.Scan(&count, &positionStr, &rating, &distanceStr); err != nil {
+		var odds float64
+		var avgRecoveryDays, avgNumRuns, avgYearsRunning, avgWinCount, avgAvgPosition, avgAvgDistanceFurlongs float64
+
+		if err := rows.Scan(
+							&count, 
+							&positionStr, 
+							&rating, 
+							&distanceStr, 
+							&odds, 
+							&avgRecoveryDays, 
+							&avgNumRuns, 
+							&avgYearsRunning, 
+							&avgWinCount, 
+							&avgAvgPosition, 
+							&avgAvgDistanceFurlongs); err != nil {
 			fmt.Println("Error scanning historical data:", err)
 			continue
 		}
@@ -164,6 +187,10 @@ func calculateProbability(selectionID int64, distance string, db *sql.DB) float6
 			// Invert position to score (lower position = higher score)
 			totalScore += 1 / float64(position)
 		}
+
+		// Factor in other parameters to adjust the score
+		// You can adjust the weight of each parameter according to its significance
+		totalScore *= (avgRecoveryDays + avgNumRuns + avgYearsRunning + avgWinCount + avgAvgPosition + avgAvgDistanceFurlongs)
 
 		// Compare distances (use a scaling factor based on distance difference)
 		historicalDistance := common.ParseDistance(distanceStr)

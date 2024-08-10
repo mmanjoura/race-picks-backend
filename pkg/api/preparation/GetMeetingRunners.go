@@ -1,8 +1,9 @@
-
 package preparation
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
@@ -12,8 +13,8 @@ import (
 )
 
 type DaySince struct {
-    RaceDate    time.Time `json:"race_date"`
-    SelectionID int       `json:"selection_id"`
+	RaceDate    time.Time `json:"race_date"`
+	SelectionID int       `json:"selection_id"`
 }
 
 type Diff struct {
@@ -21,16 +22,17 @@ type Diff struct {
 	DateDiffInDays int `json:"date_diff_in_days"`
 }
 
-func GetMeetingRunners(c *gin.Context) {	
+func GetMeetingRunners(c *gin.Context) {
 	db := database.Database.DB
 	type Selection struct {
-		ID   int
-		Name string
+		ID        int
+		Name      string
 		EventDate time.Time
 	}
+
 	eventName := c.Query("event_name")
 	eventTime := c.Query("event_time")
-	eventDate := c.Query("date")
+	eventDate := c.Query("event_date")
 
 	// Get today's runners for the given event_name and event_date
 	rows, err := db.Query(`
@@ -38,8 +40,8 @@ func GetMeetingRunners(c *gin.Context) {
 					selection_name, 
 					event_date FROM 
 					EventRunners WHERE  
-					event_name = ? and event_time = ? and DATE(event_date) = ?` , 
-					eventName, eventTime, eventDate)
+					event_name = ? and event_time = ? and DATE(event_date) = ?`,
+		eventName, eventTime, eventDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -53,7 +55,7 @@ func GetMeetingRunners(c *gin.Context) {
 		err := rows.Scan(
 			&selection.ID,
 			&selection.Name,
-			&selection.EventDate,			
+			&selection.EventDate,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -78,21 +80,24 @@ func GetMeetingRunners(c *gin.Context) {
 							 COUNT(CASE WHEN position = '1' THEN 1 END) AS win_count,
 							AVG(position) AS avg_position,
 							AVG(rating) AS avg_rating,
-							AVG(distance) AS avg_distance_furlongs
-						
+							AVG(distance) AS avg_distance_furlongs,
+							AVG(sp_odds) AS sp_odds,
+							GROUP_CONCAT(position, ', ') AS all_positions,
+							GROUP_CONCAT(distance, ', ') AS all_distances,
+							GROUP_CONCAT(racecourse, ', ') AS all_racecources,
+							GROUP_CONCAT(DATE(race_date), ', ') AS all_race_dates 
 						FROM
-							SelectionsForm	WHERE selection_id = ? order by num_runs asc`, selection.ID)
+							SelectionsForm	WHERE selection_id = ? order by race_date desc`, selection.ID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		defer rows.Close()
 
-		
-
 		// Loop through the rows and append the results to the slice
 		var data models.AnalysisData
-		for rows.Next() {		
+
+		for rows.Next() {
 			err := rows.Scan(
 				&data.SelectionID,
 				&data.SelectionName,
@@ -103,14 +108,18 @@ func GetMeetingRunners(c *gin.Context) {
 				&data.AvgPosition,
 				&data.AvgRating,
 				&data.AvgDistanceFurlongs,
+				&data.AvgOdds,
+				&data.AllPositions,
+				&data.AllDistances,
+				&data.AllCources,
+				&data.AllRaceDates,
 			)
 			if err != nil {
-			continue
+				continue
 			}
-			
+
 		}
 		analysisData = append(analysisData, data)
-
 
 	}
 
@@ -122,6 +131,22 @@ func GetMeetingRunners(c *gin.Context) {
 		}
 		analysisData[i].RecoveryDays = recoveryDays
 
+		// Get Analysis trend
+
+		dates := strings.Split(data.AllRaceDates, ",")
+		distances := strings.Split(data.AllDistances, ",")
+		positions := strings.Split(data.AllPositions, ",")
+		events := strings.Split(data.AllCources, ",")
+		selectionForm, err := parseData(dates, distances, positions, events)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		analysis := analyzeTrends(selectionForm)
+		analysisData[i].TrendAnalysis = analysis
+
+
 	}
 
 	// Check for errors from iterating over rows.
@@ -131,11 +156,8 @@ func GetMeetingRunners(c *gin.Context) {
 	}
 
 	// Return the meeting data
-c.JSON(http.StatusOK, gin.H{"meetingData": analysisData})
+	c.JSON(http.StatusOK, gin.H{"meetingData": analysisData})
 }
-
-
-
 
 func getRecoveryDays(selectionID int) (int, error) {
 	db := database.Database.DB
@@ -188,4 +210,55 @@ func getRecoveryDays(selectionID int) (int, error) {
 	return 0, nil
 }
 
+// analyzeTrends analyzes the race data and returns an AnalyzeTrends struct with the results
+func analyzeTrends(raceData []models.RaceData) models.AnalyzeTrends {
+	var bestDistances []float64
+	var bestRaces []models.RaceData
 
+	for _, race := range raceData {
+		if race.Position <= 3 {
+			bestDistances = append(bestDistances, race.Distance)
+			bestRaces = append(bestRaces, race)
+		}
+	}
+
+	if len(bestDistances) == 0 {
+		return models.AnalyzeTrends{}
+	}
+
+	// Determine the optimal distance range
+	minDistance := bestDistances[len(bestDistances)-1]
+	maxDistance := bestDistances[0]
+
+	return models.AnalyzeTrends{
+		BestRaces:         bestRaces,
+		OptimalDistanceMin: minDistance,
+		OptimalDistanceMax: maxDistance,
+	}
+}
+
+func parseData(dates, distances, positions, events []string) ([]models.RaceData, error) {
+	var raceData []models.RaceData
+
+	for i := range dates {
+		date, err := time.Parse("2006-01-02", strings.TrimSpace(dates[i]))
+		if err != nil {
+			return nil, err
+		}
+
+		var distance float64
+		fmt.Sscanf(distances[i], "%f", &distance)
+
+		var position int
+		fmt.Sscanf(positions[i], "%d", &position)
+
+		raceData = append(raceData, models.RaceData{
+			Date:     date,
+			Distance: distance,
+			Position: position,
+			Event:    events[i],
+		})
+	}
+
+	return raceData, nil
+}

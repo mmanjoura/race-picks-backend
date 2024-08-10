@@ -38,7 +38,7 @@ func InitRouter() *gin.Engine {
 
 		// preparation routes
 		
-		v1.POST("/preparation/SaveSelectionsForm", preparation.SaveSelectionsForm)
+		// v1.POST("/preparation/SaveSelectionsForm", preparation.SaveSelectionsForm)
 		v1.POST("/preparation/ScrapeRacesInfo", preparation.ScrapeRacesInfo)
 		v1.POST("/preparation/SaveMarketData", preparation.SaveMarketData)
 		// v1.POST("/preparation/SaveAnalysisData", preparation.SaveAnalysisData)
