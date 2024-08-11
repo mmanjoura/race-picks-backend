@@ -34,8 +34,34 @@ func GetMeetingRunners(c *gin.Context) {
 	eventTime := c.Query("event_time")
 	eventDate := c.Query("event_date")
 
-	// Get today's runners for the given event_name and event_date
+
+	// Get distinct Event name from SelectionsForm table
 	rows, err := db.Query(`
+		SELECT DISTINCT racecourse FROM SelectionsForm
+	`)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var eventNames []string	
+	for rows.Next() {
+		var eventName string
+		err := rows.Scan(
+			&eventName,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		eventNames = append(eventNames, eventName)
+	}
+
+
+	
+	// Get today's runners for the given event_name and event_date
+	rows, err = db.Query(`
 			SELECT 	selection_id, 
 					selection_name, 
 					event_date FROM 
@@ -262,3 +288,4 @@ func parseData(dates, distances, positions, events []string) ([]models.RaceData,
 
 	return raceData, nil
 }
+

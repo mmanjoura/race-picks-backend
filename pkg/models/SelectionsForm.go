@@ -14,7 +14,7 @@ type SelectionsForm struct {
 	Racecourse  string    `json:"racecourse"`
 	Distance    string    `json:"distance"`
 	Going       string    `json:"going"`
-	Draw        int       `json:"draw"`
+	Class        int       `json:"class"`
 	SPOdds      string    `json:"sp_odds"`
 	RaceURL     string    `json:"race_url"`
 	EventDate   time.Time `json:"event_date"`

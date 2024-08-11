@@ -21,7 +21,7 @@ type AnalysisData struct {
 	AllDistances        string        `json:"all_distances"`
 	AllCources          string        `json:"all_cources"`
 	AllRaceDates        string        `json:"all_race_dates"`
-	TrendAnalysis       AnalyzeTrends `json: trend_analysis`
+	TrendAnalysis       AnalyzeTrends `json:"trend_analysis"`
 	CreateAt            time.Time     `json:"created_at"`
 	UpdatedAt           time.Time     `json:"updated_at"`
 }
@@ -39,4 +39,9 @@ type AnalyzeTrends struct {
 	BestRaces          []RaceData
 	OptimalDistanceMin float64
 	OptimalDistanceMax float64
+}
+
+type AnalysisDataResponse struct {
+	EventCourses []string `json:"event_courses"`
+	Selections   []AnalysisData `json:"selections"`
 }

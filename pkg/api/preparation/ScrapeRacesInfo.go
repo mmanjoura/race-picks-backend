@@ -130,7 +130,6 @@ func cleanString(input string) string {
 	return strings.Join(parts, "/")
 }
 
-
 func saveSelectionsForm(c *gin.Context, selectionID int, selectionLink, selectionName string) error {
 	db := database.Database.DB
 
@@ -203,7 +202,7 @@ func saveSelectionForm(selectionsForm []models.SelectionsForm, c *gin.Context, s
 					racecourse,
 					distance,
 					going,
-					draw,
+					class,
 					sp_odds,
 					created_at
 				)
@@ -217,7 +216,7 @@ func saveSelectionForm(selectionsForm []models.SelectionsForm, c *gin.Context, s
 			selectionForm.Racecourse,
 			selectionForm.Distance,
 			selectionForm.Going,
-			selectionForm.Draw,
+			selectionForm.Class,
 			selectionForm.SPOdds,
 			time.Now(),
 		)
@@ -245,6 +244,7 @@ func getAllSelectionsForm(selectionLink string) ([]models.SelectionsForm, error)
 		racecourse := e.ChildText("td:nth-child(5)")
 		distance := e.ChildText("td:nth-child(6)")
 		going := e.ChildText("td:nth-child(7)")
+		class := e.ChildText("td:nth-child(8)")
 		spOdds := e.ChildText("td:nth-child(9)")
 
 		// Parsing the rating into an integer
@@ -253,10 +253,9 @@ func getAllSelectionsForm(selectionLink string) ([]models.SelectionsForm, error)
 			ratingValue = parseInt(rating)
 		}
 
-		// Parsing the draw (assuming it's contained in position if applicable)
-		drawValue := 0
-		if position != "" {
-			drawValue = parseInt(position)
+		classValue := 0
+		if class != "" {
+			classValue, _ = strconv.Atoi(class)
 		}
 
 		// Parsing race date to time.Time
@@ -276,7 +275,7 @@ func getAllSelectionsForm(selectionLink string) ([]models.SelectionsForm, error)
 			Racecourse: racecourse,
 			Distance:   distance,
 			Going:      going,
-			Draw:       drawValue,
+			Class:       classValue,
 			SPOdds:     spOdds,
 			RaceURL:    raceLink,
 			EventDate:  parsedDate,
@@ -314,6 +313,7 @@ func getLatestSelectionsForm(selectionLink string, lasRuntDate time.Time) ([]mod
 		racecourse := e.ChildText("td:nth-child(5)")
 		distance := e.ChildText("td:nth-child(6)")
 		going := e.ChildText("td:nth-child(7)")
+		class := e.ChildText("td:nth-child(8)")
 		spOdds := e.ChildText("td:nth-child(9)")
 
 		// Parsing the rating into an integer
@@ -322,18 +322,22 @@ func getLatestSelectionsForm(selectionLink string, lasRuntDate time.Time) ([]mod
 			ratingValue = parseInt(rating)
 		}
 
-		// Parsing the draw (assuming it's contained in position if applicable)
-		drawValue := 0
-		if position != "" {
-			drawValue = parseInt(position)
+		classValue := 0
+		if class != "" {
+			classValue, _ = strconv.Atoi(class)
 		}
+	
 
 		// Split the date by "/" and add the current year
 		dateParts := strings.Split(raceDate, "/")
 		raceDate = "20" + dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]
 
+	
+
 		// Convert raceDate to time.Time
 		parsedRaceDate, _ := time.Parse("2006-01-02", raceDate)
+		fmt.Println(" Screaped date: %s", parsedRaceDate)
+		fmt.Println(" Existing Date: %s", lasRuntDate)
 
 		if parsedRaceDate.Before(lasRuntDate) {
 			return
@@ -348,7 +352,7 @@ func getLatestSelectionsForm(selectionLink string, lasRuntDate time.Time) ([]mod
 			Racecourse: racecourse,
 			Distance:   distance,
 			Going:      going,
-			Draw:       drawValue,
+			Class:      classValue,
 			SPOdds:     spOdds,
 			RaceURL:    raceLink,
 			EventDate:  parsedRaceDate,
