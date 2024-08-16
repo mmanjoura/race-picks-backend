@@ -30,36 +30,52 @@ func GetMeetingRunners(c *gin.Context) {
 		EventDate time.Time
 	}
 
+	analysisDataResponse := models.AnalysisDataResponse{}
+
 	eventName := c.Query("event_name")
 	eventTime := c.Query("event_time")
 	eventDate := c.Query("event_date")
-
+	raceType := c.Query("race_type")
 
 	// Get distinct Event name from SelectionsForm table
 	rows, err := db.Query(`
-		SELECT DISTINCT racecourse FROM SelectionsForm
-	`)
+		SELECT 	id,
+				race_type,
+				optimal_num_runs,
+				optimal_num_years_in_competition,
+				optimal_num_wins,
+				optimal_rating,
+				optimal_position,
+				optimal_distance
+			FROM OptimalParameters
+			where race_type = ?
+	`, raceType)
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	defer rows.Close()
 
-	var eventNames []string	
+	var Params models.OptimalParameters
 	for rows.Next() {
-		var eventName string
+
 		err := rows.Scan(
-			&eventName,
+			&Params.ID,
+			&Params.RaceType,
+			&Params.OptimalNumRuns,
+			&Params.OptimalNumYearsInCompetition,
+			&Params.OptimalNumWins,
+			&Params.OptimalRating,
+			&Params.OptimalPosition,
+			&Params.OptimalDistance,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		eventNames = append(eventNames, eventName)
 	}
 
-
-	
 	// Get today's runners for the given event_name and event_date
 	rows, err = db.Query(`
 			SELECT 	selection_id, 
@@ -98,7 +114,7 @@ func GetMeetingRunners(c *gin.Context) {
 		// Execute the query
 		rows, err = db.Query(`
 						SELECT
-							selection_id,
+							COALESCE(selection_id, 0),
 							selection_name,							
 							COUNT(*) AS num_runs,
 							MAX(race_date) AS last_run_date,
@@ -122,8 +138,10 @@ func GetMeetingRunners(c *gin.Context) {
 
 		// Loop through the rows and append the results to the slice
 		var data models.AnalysisData
+		noData := false
 
 		for rows.Next() {
+			noData = false
 			err := rows.Scan(
 				&data.SelectionID,
 				&data.SelectionName,
@@ -141,11 +159,13 @@ func GetMeetingRunners(c *gin.Context) {
 				&data.AllRaceDates,
 			)
 			if err != nil {
+				noData = true
 				continue
 			}
-
 		}
-		analysisData = append(analysisData, data)
+		if !noData {
+			analysisData = append(analysisData, data)
+		}
 
 	}
 
@@ -172,7 +192,6 @@ func GetMeetingRunners(c *gin.Context) {
 		analysis := analyzeTrends(selectionForm)
 		analysisData[i].TrendAnalysis = analysis
 
-
 	}
 
 	// Check for errors from iterating over rows.
@@ -181,8 +200,11 @@ func GetMeetingRunners(c *gin.Context) {
 		return
 	}
 
+	analysisDataResponse.Parameters = Params
+	analysisDataResponse.Selections = analysisData
+
 	// Return the meeting data
-	c.JSON(http.StatusOK, gin.H{"meetingData": analysisData})
+	c.JSON(http.StatusOK, gin.H{"analysisDataResponse": analysisDataResponse})
 }
 
 func getRecoveryDays(selectionID int) (int, error) {
@@ -257,7 +279,7 @@ func analyzeTrends(raceData []models.RaceData) models.AnalyzeTrends {
 	maxDistance := bestDistances[0]
 
 	return models.AnalyzeTrends{
-		BestRaces:         bestRaces,
+		BestRaces:          bestRaces,
 		OptimalDistanceMin: minDistance,
 		OptimalDistanceMax: maxDistance,
 	}
@@ -289,3 +311,14 @@ func parseData(dates, distances, positions, events []string) ([]models.RaceData,
 	return raceData, nil
 }
 
+// Calculate average of a slice of floats
+func average(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	var sum float64
+	for _, value := range values {
+		sum += value
+	}
+	return sum / float64(len(values))
+}

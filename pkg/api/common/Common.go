@@ -9,10 +9,10 @@ type Selection struct {
 	ID        int64  `json:"id"`
 	Name      string `json:"name"`
 	EventName string `json:"event_name"`
+	EventDate string `json:"event_date"`
 	EventTime string `json:"event_time"`
 	Distance  string `json:"event_distance"`
 	Odds      string `json:"odds"`
-	EventDate string `json:"event_date"`
 }
 
 func ParseDistance(distanceStr string) int {

@@ -11,14 +11,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mmanjoura/race-picks-backend/pkg/database"
 	"github.com/mmanjoura/race-picks-backend/pkg/api/common"
+	"github.com/mmanjoura/race-picks-backend/pkg/database"
 )
 
 type SimulationResult struct {
 	SelectionID    int64   `json:"selection_id"`
 	SelectionName  string  `json:"selection_name"`
 	EventName      string  `json:"event_name"`
+	EventDate      string  `json:"event_date"`
 	EventTime      string  `json:"event_time"`
 	Odds           string  `json:"odds"`
 	WinProbability float64 `json:"win_probability"`
@@ -37,6 +38,7 @@ func MonteCarloSimulation(c *gin.Context) {
 	rows, err := db.Query(`
 		SELECT selection_id, 
 			   selection_name,
+			   event_date,
 			   event_name,
 			   event_time,
 			   price
@@ -53,7 +55,7 @@ func MonteCarloSimulation(c *gin.Context) {
 	var selections []common.Selection
 	for rows.Next() {
 		var selection common.Selection
-		if err := rows.Scan(&selection.ID, &selection.Name, &selection.EventName, &selection.EventTime, &selection.Odds); err != nil {
+		if err := rows.Scan(&selection.ID, &selection.Name, selection.EventDate, &selection.EventName, &selection.EventTime, &selection.Odds); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -82,6 +84,7 @@ func MonteCarloSimulation(c *gin.Context) {
 			SelectionID:    selection.ID,
 			SelectionName:  selection.Name,
 			EventName:      selection.EventName,
+			EventDate:      selection.EventDate,
 			EventTime:      selection.EventTime,
 			Odds:           selection.Odds,
 			WinProbability: winProbability,
@@ -159,17 +162,17 @@ func calculateProbability(selectionID int64, distance string, db *sql.DB) float6
 		var avgRecoveryDays, avgNumRuns, avgYearsRunning, avgWinCount, avgAvgPosition, avgAvgDistanceFurlongs float64
 
 		if err := rows.Scan(
-							&count, 
-							&positionStr, 
-							&rating, 
-							&distanceStr, 
-							&odds, 
-							&avgRecoveryDays, 
-							&avgNumRuns, 
-							&avgYearsRunning, 
-							&avgWinCount, 
-							&avgAvgPosition, 
-							&avgAvgDistanceFurlongs); err != nil {
+			&count,
+			&positionStr,
+			&rating,
+			&distanceStr,
+			&odds,
+			&avgRecoveryDays,
+			&avgNumRuns,
+			&avgYearsRunning,
+			&avgWinCount,
+			&avgAvgPosition,
+			&avgAvgDistanceFurlongs); err != nil {
 			fmt.Println("Error scanning historical data:", err)
 			continue
 		}
