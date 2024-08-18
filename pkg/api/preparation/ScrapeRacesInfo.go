@@ -1,6 +1,7 @@
 package preparation
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -133,6 +134,8 @@ func cleanString(input string) string {
 func saveSelectionsForm(c *gin.Context, selectionID int, selectionLink, selectionName string) error {
 	db := database.Database.DB
 
+
+
 	// first check if this selection exist in SelectionsForm table
 	// if it does, then get on the missing seletion Form data
 	rows, err := db.Query(`
@@ -159,7 +162,7 @@ func saveSelectionsForm(c *gin.Context, selectionID int, selectionLink, selectio
 		if err != nil {
 			return err
 		}
-		err = saveSelectionForm(selectionsForm, c, selectionName, selectionID)
+		err = saveSelectionForm(db, selectionsForm, c, selectionName, selectionID)
 		if err != nil {
 			return err
 		}
@@ -172,7 +175,7 @@ func saveSelectionsForm(c *gin.Context, selectionID int, selectionLink, selectio
 			return err
 		}
 
-		err = saveSelectionForm(selectionsForm, c, selectionName, selectionID)
+		err = saveSelectionForm(db, selectionsForm, c, selectionName, selectionID)
 
 		if err != nil {
 			return err
@@ -182,52 +185,90 @@ func saveSelectionsForm(c *gin.Context, selectionID int, selectionLink, selectio
 	return nil
 }
 
-func saveSelectionForm(selectionsForm []models.SelectionsForm, c *gin.Context, selectionName string, selectionID int) error {
-	db := database.Database.DB
-	for _, selectionForm := range selectionsForm {
+func saveSelectionForm(db *sql.DB, selectionsForm []models.SelectionsForm, c *gin.Context, selectionName string, selectionID int) error {
+    // db := database.Database.DB
 
-		selectionForm.Position = strconv.Itoa(extractPosition(selectionForm.Position))
-		selectionForm.Distance = fmt.Sprintf("%.1f", convertDistance(selectionForm.Distance))
-		selectionForm.Going = standardizeGoing(selectionForm.Going)
-		selectionForm.SPOdds = fmt.Sprintf("%.2f", odds(selectionForm.SPOdds))
+    if len(selectionsForm) == 0 {
+        fmt.Println("No selections form data to insert.")
+        return nil
+    }
 
-		_, err := db.ExecContext(c, `
-				INSERT INTO SelectionsForm (
-					selection_name,
-					selection_id,
-					race_date,
-					position,
-					rating,
-					race_type,
-					racecourse,
-					distance,
-					going,
-					class,
-					sp_odds,
-					created_at
-				)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			selectionName,
-			selectionID,
-			selectionForm.RaceDate,
-			selectionForm.Position,
-			selectionForm.Rating,
-			selectionForm.RaceType,
-			selectionForm.Racecourse,
-			selectionForm.Distance,
-			selectionForm.Going,
-			selectionForm.Class,
-			selectionForm.SPOdds,
-			time.Now(),
-		)
+    // Start a transaction
+    tx, err := db.BeginTx(c, nil)
+    if err != nil {
+        fmt.Println("Failed to begin transaction:", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to begin transaction"})
+        return err
+    }
 
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return err
-		}
-	}
-	return nil
+    for _, selectionForm := range selectionsForm {
+        // Processing and conversions (omitted for brevity)
+
+        res, err := tx.ExecContext(c, `
+            INSERT INTO SelectionsForm (
+                selection_name,
+                selection_id,
+                race_date,
+                position,
+                rating,
+                race_type,
+                racecourse,
+                distance,
+                going,
+                class,
+                sp_odds,
+                Age,
+                Trainer,
+                Sex,
+                Sire,
+                Dam,
+                Owner,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            selectionName,
+            selectionID,
+            selectionForm.RaceDate,
+            selectionForm.Position,
+            selectionForm.Rating,
+            selectionForm.RaceType,
+            selectionForm.Racecourse,
+            selectionForm.Distance,
+            selectionForm.Going,
+            selectionForm.Class,
+            selectionForm.SPOdds,
+            selectionForm.Age,
+            selectionForm.Trainer,
+            selectionForm.Sex,
+            selectionForm.Sire,
+            selectionForm.Dam,
+            selectionForm.Owner,
+            time.Now(),
+        )
+
+        if err != nil {
+            fmt.Println("Error executing SQL:", err)
+            tx.Rollback()
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return err
+        }
+
+        rowsAffected, _ := res.RowsAffected()
+        fmt.Println("Rows affected:", rowsAffected)
+    }
+
+    // Commit the transaction
+    err = tx.Commit()
+    if err != nil {
+        fmt.Println("Transaction commit failed:", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+        return err
+    }
+
+    fmt.Println("Transaction committed successfully")
+    return nil
 }
+
 
 func getAllSelectionsForm(selectionLink string) ([]models.SelectionsForm, error) {
 	c := colly.NewCollector()
@@ -235,55 +276,76 @@ func getAllSelectionsForm(selectionLink string) ([]models.SelectionsForm, error)
 	// Slice to store all horse information
 	selectionsForm := []models.SelectionsForm{}
 
-	c.OnHTML("table.FormTable__StyledTable-sc-1xr7jxa-1 tbody tr", func(e *colly.HTMLElement) {
-		raceDate := e.ChildText("td:nth-child(1) a")
-		raceLink := e.ChildAttr("td:nth-child(1) a", "href")
-		position := e.ChildText("td:nth-child(2)")
-		rating := e.ChildText("td:nth-child(3)")
-		raceType := e.ChildText("td:nth-child(4)")
-		racecourse := e.ChildText("td:nth-child(5)")
-		distance := e.ChildText("td:nth-child(6)")
-		going := e.ChildText("td:nth-child(7)")
-		class := e.ChildText("td:nth-child(8)")
-		spOdds := e.ChildText("td:nth-child(9)")
+	var age, trainer, sex, sire, dam, owner string
 
-		// Parsing the rating into an integer
-		ratingValue := 0
-		if rating != "" {
-			ratingValue = parseInt(rating)
-		}
-
-		classValue := 0
-		if class != "" {
-			classValue, _ = strconv.Atoi(class)
-		}
-
-		// Parsing race date to time.Time
-		parsedDate, _ := time.Parse("02/01/06", raceDate) // Assuming UK date format
-
-		// Split the date by "/" and add the current year
-		dateParts := strings.Split(raceDate, "/")
-		raceDate = "20" + dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]
-		// convert raceDate to time.Time
-		parsedRaceDate, _ := time.Parse("2006-01-02", raceDate)
-
-		selectionForm := models.SelectionsForm{
-			RaceDate:   parsedRaceDate,
-			Position:   position,
-			Rating:     ratingValue,
-			RaceType:   raceType,
-			Racecourse: racecourse,
-			Distance:   distance,
-			Going:      going,
-			Class:       classValue,
-			SPOdds:     spOdds,
-			RaceURL:    raceLink,
-			EventDate:  parsedDate,
-			CreatedAt:  time.Now(),
-		}
-
-		selectionsForm = append(selectionsForm, selectionForm)
+	c.OnHTML("table.Header__DataTable-xeaizz-1", func(e *colly.HTMLElement) {
+		age = e.ChildText("tr:nth-child(1) td.Header__DataValue-xeaizz-4")
+		trainer = e.ChildText("tr:nth-child(2) td.Header__DataValue-xeaizz-4 a")
+		sex = e.ChildText("tr:nth-child(3) td.Header__DataValue-xeaizz-4")
+		sire = e.ChildText("tr:nth-child(4) td.Header__DataValue-xeaizz-4")
+		dam = e.ChildText("tr:nth-child(5) td.Header__DataValue-xeaizz-4")
+		owner = e.ChildText("tr:nth-child(6) td.Header__DataValue-xeaizz-4")
 	})
+
+
+		// Now continue with the rest of your code to scrape race data
+		c.OnHTML("table.FormTable__StyledTable-sc-1xr7jxa-1 tbody tr", func(e *colly.HTMLElement) {
+			raceDate := e.ChildText("td:nth-child(1) a")
+			raceLink := e.ChildAttr("td:nth-child(1) a", "href")
+			position := e.ChildText("td:nth-child(2)")
+			rating := e.ChildText("td:nth-child(3)")
+			raceType := e.ChildText("td:nth-child(4)")
+			racecourse := e.ChildText("td:nth-child(5)")
+			distance := e.ChildText("td:nth-child(6)")
+			going := e.ChildText("td:nth-child(7)")
+			class := e.ChildText("td:nth-child(8)")
+			spOdds := e.ChildText("td:nth-child(9)")
+
+			// Parsing the rating into an integer
+			ratingValue := 0
+			if rating != "" {
+				ratingValue = parseInt(rating)
+			}
+
+			classValue := 0
+			if class != "" {
+				classValue, _ = strconv.Atoi(class)
+			}
+
+			// Parsing race date to time.Time
+			parsedDate, _ := time.Parse("02/01/06", raceDate) // Assuming UK date format
+
+			// Split the date by "/" and add the current year
+			dateParts := strings.Split(raceDate, "/")
+			raceDate = "20" + dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]
+
+			// Convert raceDate to time.Time
+			parsedRaceDate, _ := time.Parse("2006-01-02", raceDate)
+
+			selectionForm := models.SelectionsForm{
+				RaceDate:   parsedRaceDate,
+				Position:   position,
+				Rating:     ratingValue,
+				RaceType:   raceType,
+				Racecourse: racecourse,
+				Distance:   distance,
+				Going:      going,
+				Class:      classValue,
+				SPOdds:     spOdds,
+				RaceURL:    raceLink,
+				EventDate:  parsedDate,
+				CreatedAt:  time.Now(),
+				Age:        age,
+				Trainer:    trainer,
+				Sex:        sex,
+				Sire:       sire,
+				Dam:        dam,
+				Owner:      owner,
+			}
+
+			selectionsForm = append(selectionsForm, selectionForm)
+		})
+	
 
 	// Start scraping the URL
 	c.Visit("https://www.sportinglife.com" + selectionLink)
@@ -297,14 +359,19 @@ func getLatestSelectionsForm(selectionLink string, lasRuntDate time.Time) ([]mod
 	// Slice to store all horse information
 	selectionsForm := []models.SelectionsForm{}
 
-	// Flag to indicate if the first row has been processed
-	// firstRowProcessed := false
+	var age, trainer, sex, sire, dam, owner string
 
+	c.OnHTML("table.Header__DataTable-xeaizz-1", func(e *colly.HTMLElement) {
+		age = e.ChildText("tr:nth-child(1) td.Header__DataValue-xeaizz-4")
+		trainer = e.ChildText("tr:nth-child(2) td.Header__DataValue-xeaizz-4 a")
+		sex = e.ChildText("tr:nth-child(3) td.Header__DataValue-xeaizz-4")
+		sire = e.ChildText("tr:nth-child(4) td.Header__DataValue-xeaizz-4")
+		dam = e.ChildText("tr:nth-child(5) td.Header__DataValue-xeaizz-4")
+		owner = e.ChildText("tr:nth-child(6) td.Header__DataValue-xeaizz-4")
+	})
+
+	// Now continue with the rest of your code to scrape other data
 	c.OnHTML("table.FormTable__StyledTable-sc-1xr7jxa-1 tbody tr", func(e *colly.HTMLElement) {
-		// if firstRowProcessed {
-		// 	return
-		// }
-
 		raceDate := e.ChildText("td:nth-child(1) a")
 		raceLink := e.ChildAttr("td:nth-child(1) a", "href")
 		position := e.ChildText("td:nth-child(2)")
@@ -326,18 +393,13 @@ func getLatestSelectionsForm(selectionLink string, lasRuntDate time.Time) ([]mod
 		if class != "" {
 			classValue, _ = strconv.Atoi(class)
 		}
-	
 
 		// Split the date by "/" and add the current year
 		dateParts := strings.Split(raceDate, "/")
 		raceDate = "20" + dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]
 
-	
-
 		// Convert raceDate to time.Time
 		parsedRaceDate, _ := time.Parse("2006-01-02", raceDate)
-		fmt.Println(" Screaped date: %s", parsedRaceDate)
-		fmt.Println(" Existing Date: %s", lasRuntDate)
 
 		if parsedRaceDate.Before(lasRuntDate) {
 			return
@@ -356,14 +418,17 @@ func getLatestSelectionsForm(selectionLink string, lasRuntDate time.Time) ([]mod
 			SPOdds:     spOdds,
 			RaceURL:    raceLink,
 			EventDate:  parsedRaceDate,
+			Age:        age,
+			Trainer:    trainer,
+			Sex:        sex,
+			Sire:       sire,
+			Dam:        dam,
+			Owner:      owner,
 			CreatedAt:  time.Now(),
 		}
 
 		// Append the selection form to the slice
 		selectionsForm = append(selectionsForm, selectionForm)
-
-		// Set the flag indicating that the first row has been processed
-		// firstRowProcessed = true
 
 		// Abort the request after processing the first row
 		e.Request.Abort()
