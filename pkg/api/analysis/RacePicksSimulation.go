@@ -114,7 +114,7 @@ func CalculateWinProbability(horseParams models.CurrentHorseData, optimalParams 
 	if IsWithinTolerance(float64(horseParams.NumberOfRuns), float64(optimalParams.OptimalNumRuns), optimalParams.Tolerance) &&
 		IsWithinTolerance(float64(horseParams.YearsRunning), float64(optimalParams.OptimalNumYearsInCompetition), optimalParams.Tolerance) &&
 		IsWithinTolerance(float64(horseParams.NumberOfWins), float64(optimalParams.OptimalNumWins), optimalParams.Tolerance) &&
-		IsWithinTolerance(horseParams.AverageRating, optimalParams.OptimalRating, optimalParams.Tolerance) &&
+		IsWithinTolerance(horseParams.AverageRating, optimalParams.OptimalRating, optimalParams.Tolerance * 10.0) &&
 		IsWithinTolerance(horseParams.AveragePosition, optimalParams.OptimalPosition, optimalParams.Tolerance) &&
 		IsWithinTolerance(horseParams.AverageDistance, optimalParams.OptimalDistance, optimalParams.Tolerance) {
 		return 1.0

@@ -14,9 +14,15 @@ type SelectionsForm struct {
 	Racecourse  string    `json:"racecourse"`
 	Distance    string    `json:"distance"`
 	Going       string    `json:"going"`
-	Class        int       `json:"class"`
+	Class       int       `json:"class"`
 	SPOdds      string    `json:"sp_odds"`
 	RaceURL     string    `json:"race_url"`
+	Age         string    `json:"age"`
+	Trainer     string    `json:"trainer"`
+	Sex         string    `json:"sex"`
+	Sire        string    `json:"sire"`
+	Dam         string    `json:"dam"`
+	Owner       string   `json:"owner"`
 	EventDate   time.Time `json:"event_date"`
 	CreatedAt   time.Time `json:"created_at"`
 }

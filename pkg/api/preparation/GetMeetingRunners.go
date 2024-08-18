@@ -115,7 +115,13 @@ func GetMeetingRunners(c *gin.Context) {
 		rows, err = db.Query(`
 						SELECT
 							COALESCE(selection_id, 0),
-							selection_name,							
+							selection_name,	
+							Age,
+							Trainer,
+							Sex,
+							Sire,
+							Dam,
+							Owner,						
 							COUNT(*) AS num_runs,
 							MAX(race_date) AS last_run_date,
 							MAX(race_date) - MIN(race_date) AS duration,
@@ -145,6 +151,12 @@ func GetMeetingRunners(c *gin.Context) {
 			err := rows.Scan(
 				&data.SelectionID,
 				&data.SelectionName,
+				&data.Age,
+				&data.Trainer,
+				&data.Sex,
+				&data.Sire,
+				&data.Dam,
+				&data.Owner,
 				&data.NumRuns,
 				&data.LastRunDate,
 				&data.Duration,

@@ -9,10 +9,17 @@ type AnalysisDataResponse struct {
 	Selections []AnalysisData    `json:"selections"`
 }
 
+
 type AnalysisData struct {
 	ID                  int               `json:"id"`
 	SelectionID         int               `json:"selection_id"`
 	SelectionName       string            `json:"selection_name"`
+	Age                 string            `json:"age"`
+	Trainer             string            `json:"trainer"`
+	Sex                 string            `json:"sex"`
+	Sire                string            `json:"sire"`
+	Dam                 string            `json:"dam"`
+	Owner               string            `json:"owner"`
 	RecoveryDays        int               `json:"recovery_days"`
 	NumRuns             int               `json:"num_runs"`
 	LastRunDate         string            `json:"last_run_date"`

@@ -132,6 +132,12 @@ func calculateProbability(selectionID int64, distance string, db *sql.DB) float6
 	rows, err := db.Query(`
 		SELECT 
 			COUNT(*) AS count, 
+			Age,
+			Trainer,
+			Sex,
+			Sire,
+			Dam,
+			Owner,
 			position, 
 			rating, 
 			distance, 
@@ -160,6 +166,7 @@ func calculateProbability(selectionID int64, distance string, db *sql.DB) float6
 		var rating, count int
 		var odds float64
 		var avgRecoveryDays, avgNumRuns, avgYearsRunning, avgWinCount, avgAvgPosition, avgAvgDistanceFurlongs float64
+		
 
 		if err := rows.Scan(
 			&count,
