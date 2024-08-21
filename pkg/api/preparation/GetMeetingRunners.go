@@ -1,6 +1,7 @@
 package preparation
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -116,6 +117,7 @@ func GetMeetingRunners(c *gin.Context) {
 						SELECT
 							COALESCE(selection_id, 0),
 							selection_name,	
+							substr(position, 1, 1) as positon, 
 							Age,
 							Trainer,
 							Sex,
@@ -135,7 +137,7 @@ func GetMeetingRunners(c *gin.Context) {
 							GROUP_CONCAT(racecourse, ', ') AS all_racecources,
 							GROUP_CONCAT(DATE(race_date), ', ') AS all_race_dates 
 						FROM
-							SelectionsForm	WHERE selection_id = ? order by race_date desc`, selection.ID)
+							SelectionsForm	WHERE selection_id = ?  order by race_date desc`, selection.ID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -151,6 +153,7 @@ func GetMeetingRunners(c *gin.Context) {
 			err := rows.Scan(
 				&data.SelectionID,
 				&data.SelectionName,
+				&data.Position,
 				&data.Age,
 				&data.Trainer,
 				&data.Sex,
@@ -175,9 +178,20 @@ func GetMeetingRunners(c *gin.Context) {
 				continue
 			}
 		}
-		if !noData {
+		if !noData {	
+
+			winLose, err := getRaceResult(rows, err, db, eventDate, c, selection.ID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			data.WinLose = winLose
+
 			analysisData = append(analysisData, data)
+			
 		}
+
 
 	}
 
@@ -212,11 +226,42 @@ func GetMeetingRunners(c *gin.Context) {
 		return
 	}
 
+	
 	analysisDataResponse.Parameters = Params
 	analysisDataResponse.Selections = analysisData
 
 	// Return the meeting data
 	c.JSON(http.StatusOK, gin.H{"analysisDataResponse": analysisDataResponse})
+}
+
+func getRaceResult(rows *sql.Rows, err error, db *sql.DB, eventDate string, c *gin.Context, selectionID int) (models.WinLose, error) {
+	rows, err = db.Query(`
+		SELECT 	selection_id,
+				selection_name,
+				race_date,
+				SUBSTR(position, 1, INSTR(position, '/') - 1) as postion
+		FROM SelectionsForm
+		WHERE DATE(race_date) = ? and selection_id = ?`, eventDate, selectionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return models.WinLose{}, err
+	}
+	defer rows.Close()
+	var data models.WinLose
+	for rows.Next() {
+		err := rows.Scan(
+			&data.SelectionID,
+			&data.SelectionName,
+			&data.EventDate,
+			&data.Position,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return models.WinLose{}, err
+		}
+
+	}
+	return data, nil
 }
 
 func getRecoveryDays(selectionID int) (int, error) {

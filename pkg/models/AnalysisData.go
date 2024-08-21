@@ -9,11 +9,11 @@ type AnalysisDataResponse struct {
 	Selections []AnalysisData    `json:"selections"`
 }
 
-
 type AnalysisData struct {
 	ID                  int               `json:"id"`
 	SelectionID         int               `json:"selection_id"`
 	SelectionName       string            `json:"selection_name"`
+	Position            string            `json:"position"`
 	Age                 string            `json:"age"`
 	Trainer             string            `json:"trainer"`
 	Sex                 string            `json:"sex"`
@@ -35,6 +35,7 @@ type AnalysisData struct {
 	AllRaceDates        string            `json:"all_race_dates"`
 	TrendAnalysis       AnalyzeTrends     `json:"trend_analysis"`
 	Parameters          OptimalParameters `json:"weight_parameters"`
+	WinLose             WinLose           `json:"win_lose"`
 	CreateAt            time.Time         `json:"created_at"`
 	UpdatedAt           time.Time         `json:"updated_at"`
 }
@@ -81,4 +82,11 @@ type CurrentHorseData struct {
 	AveragePosition  float64 `json:"average_position"`
 	AverageDistance  float64 `json:"average_distance"`
 	AverageOdds      float64 `json:"average_odds"`
+}
+
+type WinLose struct {
+	SelectionID   int    `json:"selection_id"`
+	SelectionName string `json:"selection_name"`
+	EventDate     string `json:"event_date"`
+	Position      string    `json:"position"`
 }

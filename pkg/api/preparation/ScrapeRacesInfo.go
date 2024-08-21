@@ -24,6 +24,12 @@ type Selection struct {
 func ScrapeRacesInfo(c *gin.Context) {
 	db := database.Database.DB
 
+	err := updateYesterdayWinners(db, c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	horseInforamtions, err := getInfo()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -58,16 +64,52 @@ func ScrapeRacesInfo(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+	}
 
-		err = saveSelectionsForm(c, horseInforamtion.SelectionID, horseInforamtion.SelectionLink, horseInforamtion.SelectionName)
+	for _, horseInforamtion := range horseInforamtions {
+
+		err = saveSelectionsForm(db, c, horseInforamtion.SelectionID, horseInforamtion.SelectionLink, horseInforamtion.SelectionName)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Horse information saved successfully"})
+}
+
+func updateYesterdayWinners(db *sql.DB, c *gin.Context) error {
+	currentTime := time.Now()
+	// Subtract one day to get the day before
+	dayBefore := currentTime.AddDate(0, 0, -1)
+	// Format the date as YYYY-MM-DD
+	formattedDate := dayBefore.Format("2006-01-02")
+	rows, err := db.Query(`select selection_id, selection_link, selection_name from EventRunners WHERE  DATE(event_date) = ?`, formattedDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return err
+	}
+
+	selections := []Selection{}
+	for rows.Next() {
+		var selection Selection
+		err := rows.Scan(&selection.ID, &selection.Link, &selection.Name)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return nil
+		}
+		selections = append(selections, selection)
+	}
+	defer rows.Close()
+
+	for _, selection := range selections {
+		err = saveSelectionsForm(db, c, selection.ID, selection.Link, selection.Name)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return nil
+		}
+	}
+	return nil
 }
 
 func getInfo() ([]models.TodayRunners, error) {
@@ -131,11 +173,7 @@ func cleanString(input string) string {
 	return strings.Join(parts, "/")
 }
 
-func saveSelectionsForm(c *gin.Context, selectionID int, selectionLink, selectionName string) error {
-	db := database.Database.DB
-
-
-
+func saveSelectionsForm(db *sql.DB, c *gin.Context, selectionID int, selectionLink, selectionName string) error {
 	// first check if this selection exist in SelectionsForm table
 	// if it does, then get on the missing seletion Form data
 	rows, err := db.Query(`
@@ -153,7 +191,6 @@ func saveSelectionsForm(c *gin.Context, selectionID int, selectionLink, selectio
 			return err
 		}
 	}
-
 	defer rows.Close()
 
 	if selection_id == 0 {
@@ -186,89 +223,79 @@ func saveSelectionsForm(c *gin.Context, selectionID int, selectionLink, selectio
 }
 
 func saveSelectionForm(db *sql.DB, selectionsForm []models.SelectionsForm, c *gin.Context, selectionName string, selectionID int) error {
-    // db := database.Database.DB
 
-    if len(selectionsForm) == 0 {
-        fmt.Println("No selections form data to insert.")
-        return nil
-    }
+	if len(selectionsForm) == 0 {
+		fmt.Println("No selections form data to insert.")
+		return nil
+	}
 
-    // Start a transaction
-    tx, err := db.BeginTx(c, nil)
-    if err != nil {
-        fmt.Println("Failed to begin transaction:", err)
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to begin transaction"})
-        return err
-    }
+	// Start a transaction
+	tx, err := db.BeginTx(c, nil)
+	if err != nil {
+		fmt.Println("Failed to begin transaction:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to begin transaction"})
+		return err
+	}
+	fmt.Println("Transaction started")
 
-    for _, selectionForm := range selectionsForm {
-        // Processing and conversions (omitted for brevity)
+	for _, selectionForm := range selectionsForm {
+		// Processing and conversions (omitted for brevity)
+		fmt.Println("Inserting record for:", selectionForm)
 
-        res, err := tx.ExecContext(c, `
-            INSERT INTO SelectionsForm (
-                selection_name,
-                selection_id,
-                race_date,
-                position,
-                rating,
-                race_type,
-                racecourse,
-                distance,
-                going,
-                class,
-                sp_odds,
-                Age,
-                Trainer,
-                Sex,
-                Sire,
-                Dam,
-                Owner,
-                created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            selectionName,
-            selectionID,
-            selectionForm.RaceDate,
-            selectionForm.Position,
-            selectionForm.Rating,
-            selectionForm.RaceType,
-            selectionForm.Racecourse,
-            selectionForm.Distance,
-            selectionForm.Going,
-            selectionForm.Class,
-            selectionForm.SPOdds,
-            selectionForm.Age,
-            selectionForm.Trainer,
-            selectionForm.Sex,
-            selectionForm.Sire,
-            selectionForm.Dam,
-            selectionForm.Owner,
-            time.Now(),
+		res, err := tx.ExecContext(c, `
+        INSERT INTO SelectionsForm (
+                               selection_name,
+                               selection_id,
+                               race_date,
+                               position,
+                               rating,
+                               race_type,
+                               racecourse,
+                               distance,
+                               going,
+                               class,
+                               sp_odds,
+                               Age,
+                               Trainer,
+                               Sex,
+                               Sire,
+                               Dam,
+                               Owner,
+                               created_at,
+                               updated_at
         )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			selectionName, selectionID, selectionForm.RaceDate, selectionForm.Position,
+			selectionForm.Rating, selectionForm.RaceType, selectionForm.Racecourse,
+			selectionForm.Distance, selectionForm.Going, selectionForm.Class,
+			selectionForm.SPOdds, selectionForm.Age, selectionForm.Trainer,
+			selectionForm.Sex, selectionForm.Sire, selectionForm.Dam, selectionForm.Owner,
+			time.Now(),
+			time.Now())
 
-        if err != nil {
-            fmt.Println("Error executing SQL:", err)
-            tx.Rollback()
-            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-            return err
-        }
+		if err != nil {
+			fmt.Println("Error executing SQL:", err)
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return err
+		}
 
-        rowsAffected, _ := res.RowsAffected()
-        fmt.Println("Rows affected:", rowsAffected)
-    }
+		rowsAffected, _ := res.RowsAffected()
+		fmt.Println("Rows affected:", rowsAffected)
+	}
 
-    // Commit the transaction
-    err = tx.Commit()
-    if err != nil {
-        fmt.Println("Transaction commit failed:", err)
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-        return err
-    }
+	// Commit the transaction
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("Transaction commit failed:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return err
+	}
 
-    fmt.Println("Transaction committed successfully")
-    return nil
+	fmt.Println("Transaction committed successfully")
+
+	return nil
 }
-
 
 func getAllSelectionsForm(selectionLink string) ([]models.SelectionsForm, error) {
 	c := colly.NewCollector()
@@ -287,65 +314,63 @@ func getAllSelectionsForm(selectionLink string) ([]models.SelectionsForm, error)
 		owner = e.ChildText("tr:nth-child(6) td.Header__DataValue-xeaizz-4")
 	})
 
+	// Now continue with the rest of your code to scrape race data
+	c.OnHTML("table.FormTable__StyledTable-sc-1xr7jxa-1 tbody tr", func(e *colly.HTMLElement) {
+		raceDate := e.ChildText("td:nth-child(1) a")
+		raceLink := e.ChildAttr("td:nth-child(1) a", "href")
+		position := e.ChildText("td:nth-child(2)")
+		rating := e.ChildText("td:nth-child(3)")
+		raceType := e.ChildText("td:nth-child(4)")
+		racecourse := e.ChildText("td:nth-child(5)")
+		distance := e.ChildText("td:nth-child(6)")
+		going := e.ChildText("td:nth-child(7)")
+		class := e.ChildText("td:nth-child(8)")
+		spOdds := e.ChildText("td:nth-child(9)")
 
-		// Now continue with the rest of your code to scrape race data
-		c.OnHTML("table.FormTable__StyledTable-sc-1xr7jxa-1 tbody tr", func(e *colly.HTMLElement) {
-			raceDate := e.ChildText("td:nth-child(1) a")
-			raceLink := e.ChildAttr("td:nth-child(1) a", "href")
-			position := e.ChildText("td:nth-child(2)")
-			rating := e.ChildText("td:nth-child(3)")
-			raceType := e.ChildText("td:nth-child(4)")
-			racecourse := e.ChildText("td:nth-child(5)")
-			distance := e.ChildText("td:nth-child(6)")
-			going := e.ChildText("td:nth-child(7)")
-			class := e.ChildText("td:nth-child(8)")
-			spOdds := e.ChildText("td:nth-child(9)")
+		// Parsing the rating into an integer
+		ratingValue := 0
+		if rating != "" {
+			ratingValue = parseInt(rating)
+		}
 
-			// Parsing the rating into an integer
-			ratingValue := 0
-			if rating != "" {
-				ratingValue = parseInt(rating)
-			}
+		classValue := 0
+		if class != "" {
+			classValue, _ = strconv.Atoi(class)
+		}
 
-			classValue := 0
-			if class != "" {
-				classValue, _ = strconv.Atoi(class)
-			}
+		// Parsing race date to time.Time
+		parsedDate, _ := time.Parse("02/01/06", raceDate) // Assuming UK date format
 
-			// Parsing race date to time.Time
-			parsedDate, _ := time.Parse("02/01/06", raceDate) // Assuming UK date format
+		// Split the date by "/" and add the current year
+		dateParts := strings.Split(raceDate, "/")
+		raceDate = "20" + dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]
 
-			// Split the date by "/" and add the current year
-			dateParts := strings.Split(raceDate, "/")
-			raceDate = "20" + dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]
+		// Convert raceDate to time.Time
+		parsedRaceDate, _ := time.Parse("2006-01-02", raceDate)
 
-			// Convert raceDate to time.Time
-			parsedRaceDate, _ := time.Parse("2006-01-02", raceDate)
+		selectionForm := models.SelectionsForm{
+			RaceDate:   parsedRaceDate,
+			Position:   position,
+			Rating:     ratingValue,
+			RaceType:   raceType,
+			Racecourse: racecourse,
+			Distance:   distance,
+			Going:      going,
+			Class:      classValue,
+			SPOdds:     spOdds,
+			RaceURL:    raceLink,
+			EventDate:  parsedDate,
+			Age:        age,
+			Trainer:    trainer,
+			Sex:        sex,
+			Sire:       sire,
+			Dam:        dam,
+			Owner:      owner,
+			CreatedAt:  time.Now(),
+		}
 
-			selectionForm := models.SelectionsForm{
-				RaceDate:   parsedRaceDate,
-				Position:   position,
-				Rating:     ratingValue,
-				RaceType:   raceType,
-				Racecourse: racecourse,
-				Distance:   distance,
-				Going:      going,
-				Class:      classValue,
-				SPOdds:     spOdds,
-				RaceURL:    raceLink,
-				EventDate:  parsedDate,
-				CreatedAt:  time.Now(),
-				Age:        age,
-				Trainer:    trainer,
-				Sex:        sex,
-				Sire:       sire,
-				Dam:        dam,
-				Owner:      owner,
-			}
-
-			selectionsForm = append(selectionsForm, selectionForm)
-		})
-	
+		selectionsForm = append(selectionsForm, selectionForm)
+	})
 
 	// Start scraping the URL
 	c.Visit("https://www.sportinglife.com" + selectionLink)
@@ -401,7 +426,7 @@ func getLatestSelectionsForm(selectionLink string, lasRuntDate time.Time) ([]mod
 		// Convert raceDate to time.Time
 		parsedRaceDate, _ := time.Parse("2006-01-02", raceDate)
 
-		if parsedRaceDate.Before(lasRuntDate) {
+		if !parsedRaceDate.After(lasRuntDate) {
 			return
 		}
 
