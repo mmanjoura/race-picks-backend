@@ -3,6 +3,7 @@ package preparation
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -178,7 +179,7 @@ func GetMeetingRunners(c *gin.Context) {
 				continue
 			}
 		}
-		if !noData {	
+		if !noData {
 
 			winLose, err := getRaceResult(rows, err, db, eventDate, c, selection.ID)
 			if err != nil {
@@ -189,14 +190,15 @@ func GetMeetingRunners(c *gin.Context) {
 			data.WinLose = winLose
 
 			analysisData = append(analysisData, data)
-			
-		}
 
+		}
 
 	}
 
 	for i, data := range analysisData {
-		recoveryDays, err := getRecoveryDays(data.SelectionID)
+		
+
+		recoveryDays, err := getRecoveryDays(data.SelectionID, eventDate)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -226,7 +228,6 @@ func GetMeetingRunners(c *gin.Context) {
 		return
 	}
 
-	
 	analysisDataResponse.Parameters = Params
 	analysisDataResponse.Selections = analysisData
 
@@ -264,7 +265,7 @@ func getRaceResult(rows *sql.Rows, err error, db *sql.DB, eventDate string, c *g
 	return data, nil
 }
 
-func getRecoveryDays(selectionID int) (int, error) {
+func getRecoveryDays(selectionID int, eventDate string) (float64, error) {
 	db := database.Database.DB
 
 	// Execute the query with WITH daysSince as subquery
@@ -303,12 +304,20 @@ func getRecoveryDays(selectionID int) (int, error) {
 	// Calculate the difference between the two dates, if there are at least 2 races
 	if len(daysSince) == 2 {
 		// Normalize dates by removing the time component
-		raceDate1 := time.Date(daysSince[0].RaceDate.Year(), daysSince[0].RaceDate.Month(), daysSince[0].RaceDate.Day(), 0, 0, 0, 0, time.UTC)
-		raceDate2 := time.Date(daysSince[1].RaceDate.Year(), daysSince[1].RaceDate.Month(), daysSince[1].RaceDate.Day(), 0, 0, 0, 0, time.UTC)
+		var lastRunDate time.Time
+		if eventDate == time.Now().Format("2006-01-02") {
+			lastRunDate = time.Date(daysSince[0].RaceDate.Year(), daysSince[0].RaceDate.Month(), daysSince[0].RaceDate.Day(), 0, 0, 0, 0, time.UTC)
+		} else {
+			lastRunDate = time.Date(daysSince[1].RaceDate.Year(), daysSince[1].RaceDate.Month(), daysSince[1].RaceDate.Day(), 0, 0, 0, 0, time.UTC)
+		}
 
-		dateDiff := int(raceDate1.Sub(raceDate2).Hours() / 24)
+		date, err := time.Parse("2006-01-02", eventDate)
+		if err != nil {
+			return 0.0, err
+		}
+		dateDiff := date.Sub(lastRunDate).Hours() / 24
 
-		return dateDiff, nil
+		return math.Abs(dateDiff), nil
 	}
 
 	// If there is only one race or none, we cannot calculate a meaningful difference
@@ -379,3 +388,4 @@ func average(values []float64) float64 {
 	}
 	return sum / float64(len(values))
 }
+

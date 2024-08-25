@@ -13,6 +13,9 @@ type AnalysisData struct {
 	ID                  int               `json:"id"`
 	SelectionID         int               `json:"selection_id"`
 	SelectionName       string            `json:"selection_name"`
+	EventName           string            `json:"event_name"`
+	EventDate		   string            `json:"event_date"`
+	EventTime           string            `json:"event_time"`
 	Position            string            `json:"position"`
 	Age                 string            `json:"age"`
 	Trainer             string            `json:"trainer"`
@@ -20,7 +23,7 @@ type AnalysisData struct {
 	Sire                string            `json:"sire"`
 	Dam                 string            `json:"dam"`
 	Owner               string            `json:"owner"`
-	RecoveryDays        int               `json:"recovery_days"`
+	RecoveryDays        float64               `json:"recovery_days"`
 	NumRuns             int               `json:"num_runs"`
 	LastRunDate         string            `json:"last_run_date"`
 	Duration            int               `json:"duration"`
@@ -55,21 +58,15 @@ type AnalyzeTrends struct {
 	OptimalDistanceMax float64
 }
 
-type OptimalParameters struct {
-	ID                           int     `json:"id"`
-	RaceType                     string  `json:"race_type"`
-	RaceDistance                 float64 `json:"race_distance"`
-	Tolerance                    float64 `json:"tolerance"`
-	OptimalRecoveryDays          int     `json:"optimal_recovery_days"`
-	OptimalNumRuns               int     `json:"optimal_num_runs"`
-	OptimalNumYearsInCompetition int     `json:"optimal_num_years_in_competition"`
-	OptimalNumWins               int     `json:"optimal_num_wins"`
-	OptimalRating                float64 `json:"optimal_rating"`
-	OptimalPosition              float64 `json:"optimal_position"`
-	OptimalDistance              float64 `json:"optimal_distance"`
-	EventName                    string  `json:"event_name"`
-	EventDate                    string  `json:"event_date"`
-	EventTime                    string  `json:"event_time"`
+type RaceParameters struct {
+	ID           int     `json:"id"`
+	RaceType     string  `json:"race_type"`
+	RaceDistance float64 `json:"race_distance"`
+	Handicap     bool    `json:"handicap"`
+	RaceClass    string  `json:"race_class"`
+	EventName    string  `json:"event_name"`
+	EventDate    string  `json:"event_date"`
+	EventTime    string  `json:"event_time"`
 }
 
 type CurrentHorseData struct {
@@ -88,5 +85,22 @@ type WinLose struct {
 	SelectionID   int    `json:"selection_id"`
 	SelectionName string `json:"selection_name"`
 	EventDate     string `json:"event_date"`
-	Position      string    `json:"position"`
+	Position      string `json:"position"`
+}
+
+type OptimalParameters struct {
+	ID                           int     `json:"id"`
+	RaceType                     string  `json:"race_type"`
+	RaceDistance                 float64 `json:"race_distance"`
+	Tolerance                    float64 `json:"tolerance"`
+	OptimalRecoveryDays          int     `json:"optimal_recovery_days"`
+	OptimalNumRuns               int     `json:"optimal_num_runs"`
+	OptimalNumYearsInCompetition int     `json:"optimal_num_years_in_competition"`
+	OptimalNumWins               int     `json:"optimal_num_wins"`
+	OptimalRating                float64 `json:"optimal_rating"`
+	OptimalPosition              float64 `json:"optimal_position"`
+	OptimalDistance              float64 `json:"optimal_distance"`
+	EventName                    string  `json:"event_name"`
+	EventDate                    string  `json:"event_date"`
+	EventTime                    string  `json:"event_time"`
 }

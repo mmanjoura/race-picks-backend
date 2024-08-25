@@ -347,6 +347,7 @@ func getAllSelectionsForm(selectionLink string) ([]models.SelectionsForm, error)
 
 		// Convert raceDate to time.Time
 		parsedRaceDate, _ := time.Parse("2006-01-02", raceDate)
+		sDistance := convertDistance(distance)
 
 		selectionForm := models.SelectionsForm{
 			RaceDate:   parsedRaceDate,
@@ -354,7 +355,7 @@ func getAllSelectionsForm(selectionLink string) ([]models.SelectionsForm, error)
 			Rating:     ratingValue,
 			RaceType:   raceType,
 			Racecourse: racecourse,
-			Distance:   distance,
+			Distance:   sDistance,
 			Going:      going,
 			Class:      classValue,
 			SPOdds:     spOdds,
@@ -430,6 +431,8 @@ func getLatestSelectionsForm(selectionLink string, lasRuntDate time.Time) ([]mod
 			return
 		}
 
+		sDistance := convertDistance(distance)
+
 		// Create a new SelectionsForm object with the scraped data
 		selectionForm := models.SelectionsForm{
 			RaceDate:   parsedRaceDate,
@@ -437,7 +440,7 @@ func getLatestSelectionsForm(selectionLink string, lasRuntDate time.Time) ([]mod
 			Rating:     ratingValue,
 			RaceType:   raceType,
 			Racecourse: racecourse,
-			Distance:   distance,
+			Distance:   sDistance,
 			Going:      going,
 			Class:      classValue,
 			SPOdds:     spOdds,
@@ -484,7 +487,7 @@ func extractPosition(posStr string) int {
 }
 
 // convertDistance converts a distance string like "2m 1f 47y" to furlongs.
-func convertDistance(distanceStr string) float64 {
+func convertDistance(distanceStr string) string {
 	parts := strings.Split(distanceStr, " ")
 	furlongs := 0.0
 	for _, part := range parts {
@@ -506,7 +509,7 @@ func convertDistance(distanceStr string) float64 {
 			}
 		}
 	}
-	return furlongs
+	return strconv.FormatFloat(furlongs, 'f', -1, 64)
 }
 
 // odds converts fractional odds (e.g., "5/2") to a probability.
