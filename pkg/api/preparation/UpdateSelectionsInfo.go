@@ -24,9 +24,9 @@ func UpdateSelectionsInfo(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	selections := []Selection{}
+	selections := []models.Selection{}
 	for rows.Next() {
-		var selection Selection
+		var selection models.Selection
 		if err := rows.Scan(&selection.ID, &selection.Link); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

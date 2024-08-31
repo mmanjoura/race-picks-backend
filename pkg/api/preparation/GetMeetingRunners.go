@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -228,8 +230,36 @@ func GetMeetingRunners(c *gin.Context) {
 		return
 	}
 
-	analysisDataResponse.Parameters = Params
-	analysisDataResponse.Selections = analysisData
+
+		// Sorting logic
+		sort.Slice(analysisData, func(i, j int) bool {
+			// Sort by winner positions (1, 2, 3) first
+			positions := map[int]bool{1: true, 2: true, 3: true}
+			posI, posJ := analysisData[i].WinLose.Position, analysisData[j].WinLose.Position
+
+			pi, err := strconv.Atoi(posI)
+			if err != nil {
+				pi = 0
+			}
+			pj, err := strconv.Atoi(posJ)
+			if err != nil {
+				pj = 0
+			}
+	
+			if positions[pi] && !positions[pj] {
+				return true
+			} else if !positions[pi] && positions[pj] {
+				return false
+			} else if posI != posJ {
+				return posI < posJ
+			}
+			
+	
+			// Then by average position
+			return analysisData[i].AvgPosition < analysisData[j].AvgPosition
+		})
+		analysisDataResponse.Selections = analysisData
+	
 
 	// Return the meeting data
 	c.JSON(http.StatusOK, gin.H{"analysisDataResponse": analysisDataResponse})

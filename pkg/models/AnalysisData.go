@@ -14,7 +14,7 @@ type AnalysisData struct {
 	SelectionID         int               `json:"selection_id"`
 	SelectionName       string            `json:"selection_name"`
 	EventName           string            `json:"event_name"`
-	EventDate		   string            `json:"event_date"`
+	EventDate           string            `json:"event_date"`
 	EventTime           string            `json:"event_time"`
 	Position            string            `json:"position"`
 	Age                 string            `json:"age"`
@@ -23,7 +23,8 @@ type AnalysisData struct {
 	Sire                string            `json:"sire"`
 	Dam                 string            `json:"dam"`
 	Owner               string            `json:"owner"`
-	RecoveryDays        float64               `json:"recovery_days"`
+	EventClass          string            `json:"event_class"`
+	RecoveryDays        float64           `json:"recovery_days"`
 	NumRuns             int               `json:"num_runs"`
 	LastRunDate         string            `json:"last_run_date"`
 	Duration            int               `json:"duration"`
@@ -39,6 +40,7 @@ type AnalysisData struct {
 	TrendAnalysis       AnalyzeTrends     `json:"trend_analysis"`
 	Parameters          OptimalParameters `json:"weight_parameters"`
 	WinLose             WinLose           `json:"win_lose"`
+	TotalScore          float64           `json:"total_score"`
 	CreateAt            time.Time         `json:"created_at"`
 	UpdatedAt           time.Time         `json:"updated_at"`
 }
@@ -59,14 +61,15 @@ type AnalyzeTrends struct {
 }
 
 type RaceParameters struct {
-	ID           int     `json:"id"`
-	RaceType     string  `json:"race_type"`
-	RaceDistance float64 `json:"race_distance"`
-	Handicap     bool    `json:"handicap"`
-	RaceClass    string  `json:"race_class"`
-	EventName    string  `json:"event_name"`
-	EventDate    string  `json:"event_date"`
-	EventTime    string  `json:"event_time"`
+	ID           int    `json:"id"`
+	RaceType     string `json:"race_type"`
+	RaceDistance string `json:"race_distance"`
+	Handicap     bool   `json:"handicap"`
+	RaceClass    string `json:"race_class"`
+	Going        string `json:"going"`
+	EventName    string `json:"event_name"`
+	EventDate    string `json:"event_date"`
+	EventTime    string `json:"event_time"`
 }
 
 type CurrentHorseData struct {
@@ -103,4 +106,47 @@ type OptimalParameters struct {
 	EventName                    string  `json:"event_name"`
 	EventDate                    string  `json:"event_date"`
 	EventTime                    string  `json:"event_time"`
+}
+
+type SelectionForm struct {
+	ID               int       `json:"id"`
+	SelectionName    string    `json:"selection_name"`
+	SelectionID      int       `json:"selection_id"`
+	RaceDate         time.Time `json:"race_date"` // Use time.Time for date fields
+	Position         string    `json:"position"`
+	Rating           string    `json:"rating"`
+	RaceType         string    `json:"race_type"`
+	Racecourse       string    `json:"racecourse"`
+	Distance         string    `json:"distance"`
+	Going            string    `json:"going"`
+	Class            string    `json:"class"`
+	SpOdds           string    `json:"sp_odds"` // String format for odds
+	Age              string    `json:"age"`
+	Trainer          string    `json:"trainer"`
+	Sex              string    `json:"sex"`
+	Sire             string    `json:"sire"`
+	Dam              string    `json:"dam"`
+	Owner            string    `json:"owner"`
+	AVGPosition      float64   `json:"avg_position"`
+	AVGRating        float64   `json:"avg_rating"`
+	CurrentEventName string    `json:"current_event_name"`
+	CurrentEventDate string    `json:"current_event_date"`
+	CurrentEventTime string    `json:"current_event_time"`
+	Score            string    `json:"score"`
+}
+
+type SelectionResult struct {
+	EventName     string  `json:"event_name"`
+	EventDate     string  `json:"event_date"`
+	EventTime     string  `json:"event_time"`
+	SelectionName string  `json:"selection_name"`
+	EventClass    string  `json:"event_class"`
+	RaceType      string  `json:"race_type"`
+	Odds          string  `json:"odds"`
+	Trainer       string  `json:"trainer"`
+	AvgPosition   float64 `json:"avg_position"`
+	AvgRating     float64 `json:"avg_rating"`
+	TotalScore    float64 `json:"total_score"`
+	Age           string  `json:"age"`
+	RunCount      int     `json:"run_count"`
 }

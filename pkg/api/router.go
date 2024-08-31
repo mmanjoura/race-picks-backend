@@ -37,9 +37,9 @@ func InitRouter() *gin.Engine {
 		v1.GET("/auth/account", users.Account)
 
 		// preparation routes
-		
-		// v1.POST("/preparation/SaveSelectionsForm", preparation.SaveSelectionsForm)
-		v1.POST("/preparation/ScrapeRacesInfo", preparation.ScrapeRacesInfo)
+		v1.POST("/preparation/GetRacingMarketData", preparation.GetRacingMarketData)
+		v1.POST("/preparation/GetRacingMarketWinners", preparation.GetRacingMarketWinners)
+		// v1.POST("/preparation/ScrapeRacesInfo", preparation.ScrapeRacesInfo)
 		v1.POST("/preparation/UpdateSelectionsInfo", preparation.UpdateSelectionsInfo)
 		v1.POST("/preparation/SaveMarketData", preparation.SaveMarketData)
 		// v1.POST("/preparation/SaveAnalysisData", preparation.SaveAnalysisData)
@@ -50,6 +50,7 @@ func InitRouter() *gin.Engine {
 
 		v1.POST("/analysis/MonteCarloSimulation", analysis.MonteCarloSimulation)
 		v1.POST("/analysis/RacePicksSimulation", analysis.RacePicksSimulation)
+		v1.POST("/analysis/MeetingPrediction", analysis.MeetingPrediction)
 	}
 
 	return r

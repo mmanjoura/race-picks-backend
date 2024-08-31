@@ -9,12 +9,12 @@ type SelectionsForm struct {
 	SelectionID int       `json:"selection_id"`
 	RaceDate    time.Time `json:"race_date"`
 	Position    string    `json:"position"`
-	Rating      int       `json:"rating"`
+	Rating      string       `json:"rating"`
 	RaceType    string    `json:"race_type"`
 	Racecourse  string    `json:"racecourse"`
 	Distance    string    `json:"distance"`
 	Going       string    `json:"going"`
-	Class       int       `json:"class"`
+	Class       string       `json:"class"`
 	SPOdds      string    `json:"sp_odds"`
 	RaceURL     string    `json:"race_url"`
 	Age         string    `json:"age"`
