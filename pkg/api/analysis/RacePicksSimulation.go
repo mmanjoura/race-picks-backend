@@ -188,18 +188,28 @@ func RacePicksSimulation(c *gin.Context) {
 			if err != nil {
 				continue
 			}
+
 		}
-		analysisData = append(analysisData, data)
+		if data.SelectionID != 0 {
+			analysisData = append(analysisData, data)
+		}
 	}
 
-	mapResult := make(map[int64]models.SelectionResult)
+	mapResult := make(map[int]models.SelectionResult)
 	var sortedResults []models.SelectionResult
 
 	result := models.SelectionResult{}
+	selectionsIds := []int{}
 
-	for id, selecion := range selections {
+	for _, data := range analysisData {
+		selectionsIds = append(selectionsIds, data.SelectionID)
+	}
 
-		if selecion.ID == int64(analysisData[id].SelectionID) {
+	newSelections := filterSelectionsByID(selections, selectionsIds)		
+
+	for id, selecion := range newSelections {
+
+		if selecion.ID == analysisData[id].SelectionID {
 			totalScore := ScoreSelection(analysisData[id], raceParams, selectionCount[0].NumberOfRuns)
 			result.EventName = selecion.EventName
 			result.EventTime = selecion.EventTime
@@ -213,10 +223,9 @@ func RacePicksSimulation(c *gin.Context) {
 			result.RunCount = analysisData[id].NumRuns
 			mapResult[selecion.ID] = result
 
-		}
-		if result.TotalScore > 0 {
 			sortedResults = append(sortedResults, result)
-		}
+		}	
+
 	}
 
 	// Step 2: Sort the slice by TotalScore
@@ -224,7 +233,7 @@ func RacePicksSimulation(c *gin.Context) {
 		return sortedResults[i].TotalScore > sortedResults[j].TotalScore
 	})
 
-	// Remove duplicate selection.Name
+
 	var uniqueResults []models.SelectionResult
 	uniqueNames := make(map[string]bool)
 	for _, result := range sortedResults {
@@ -236,6 +245,23 @@ func RacePicksSimulation(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"simulationResults": uniqueResults})
 }
+
+func filterSelectionsByID(selections []common.Selection, ids []int) []common.Selection {
+    idSet := make(map[int]struct{})
+    for _, id := range ids {
+        idSet[id] = struct{}{}
+    }
+
+    var filteredSelections []common.Selection
+    for _, selection := range selections {
+        if _, exists := idSet[selection.ID]; exists {
+            filteredSelections = append(filteredSelections, selection)
+        }
+    }
+
+    return filteredSelections
+}
+
 
 func fetchConstantScore(db *sql.DB, category, item string) (float64, error) {
 	var score float64
@@ -249,12 +275,6 @@ func fetchConstantScore(db *sql.DB, category, item string) (float64, error) {
 func scoreRace(db *sql.DB, races []models.AnalysisData, raceParams models.RaceParameters) (models.ScoreBreakdown, error) {
 	var raceTypeScore, courseScore, distanceScore, classScore, ageScore, positionScore float64
 	var eventName, eventTime, selectionName, odds, trainer string
-
-	for _, race := range races {
-
-		fmt.Print(race)
-
-	}
 
 	return models.ScoreBreakdown{
 
@@ -527,7 +547,7 @@ func ScoreSelection(selection models.AnalysisData, params models.RaceParameters,
 	if len(strDistances) >= limit {
 		limitedDistances = strDistances[:limit]
 	} else {
-		limitedDistances = strDistances[:len(strDistances)]
+		limitedDistances = strDistances[:]
 	}
 	var floadDistance float64
 	for _, distance := range limitedDistances {
@@ -579,7 +599,7 @@ func ScoreSelection(selection models.AnalysisData, params models.RaceParameters,
 
 		limitedPostion = strPostion[:limit]
 	} else {
-		limitedPostion = strPostion[:len(strPostion)]
+		limitedPostion = strPostion[:]
 	}
 
 	for _, postion := range limitedPostion {
@@ -609,3 +629,4 @@ func safeDivide(numerator, denominator float64) float64 {
 	}
 	return numerator / denominator
 }
+

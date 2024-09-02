@@ -6,7 +6,7 @@ import (
 )
 
 type Selection struct {
-	ID        int64  `json:"id"`
+	ID        int  `json:"id"`
 	Name      string `json:"name"`
 	EventName string `json:"event_name"`
 	EventDate string `json:"event_date"`
