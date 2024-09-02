@@ -33,6 +33,8 @@ type AnalysisData struct {
 	AvgRating           float64           `json:"avg_rating"`
 	AvgDistanceFurlongs float64           `json:"avg_distance_furlongs"`
 	AvgOdds             float64           `json:"avg_odds"`
+	AllClasses          string            `json:"all_classes"`
+	AllRaceTypes        string            `json:"all_race_types"`
 	AllPositions        string            `json:"all_positions"`
 	AllDistances        string            `json:"all_distances"`
 	AllCources          string            `json:"all_cources"`
@@ -70,6 +72,10 @@ type RaceParameters struct {
 	EventName    string `json:"event_name"`
 	EventDate    string `json:"event_date"`
 	EventTime    string `json:"event_time"`
+	Positions   string `json:"positions"`
+	Years       string `json:"years"`
+	Ages        string `json:"ages"`
+
 }
 
 type CurrentHorseData struct {

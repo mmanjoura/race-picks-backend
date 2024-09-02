@@ -3,6 +3,7 @@ package analysis
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"math"
 	"net/http"
 	"sort"
@@ -27,6 +28,11 @@ func RacePicksSimulation(c *gin.Context) {
 		return
 	}
 
+	// Example parameters to filter by
+	years := strings.Split(raceParams.Years, ",")         //[]string{"2024", "2023", "2022"} // Example year list
+	positions := strings.Split(raceParams.Positions, ",") //[]string{"2", "3", "4", "7"} // Example position list
+	ages := strings.Split(raceParams.Ages, ",")           //[]string{"2", "3", "4", "5"}      // Example age list
+
 	// Query for today's runners
 	rows, err := db.Query(`
 		SELECT selection_id,
@@ -36,8 +42,8 @@ func RacePicksSimulation(c *gin.Context) {
 			   event_time,
 			   price
 		FROM EventRunners
-		WHERE DATE(event_date) = ? AND event_name = ? AND event_time = ?`,
-		raceParams.EventDate, raceParams.EventName, raceParams.EventTime)
+		WHERE DATE(event_date) = ? AND event_name = ?`,
+		raceParams.EventDate, raceParams.EventName)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -65,33 +71,85 @@ func RacePicksSimulation(c *gin.Context) {
 	// var selectonsForm []models.SelectionForm
 	var analysisData []models.AnalysisData
 	for _, selection := range selections {
-		// Execute the query
-		rows, err = db.Query(`
-			SELECT
-				COALESCE(selection_id, 0),
-				selection_name,	
-				substr(position, 1, 1) as positon, 
-				Age,
-				Trainer,
-				Sex,
-				Sire,
-				Dam,
-				Owner,	
-				Class,					
-				COUNT(*) AS num_runs,
-				MAX(race_date) AS last_run_date,
-				MAX(race_date) - MIN(race_date) AS duration,
-				COUNT(CASE WHEN position = '1' THEN 1 END) AS win_count,
-				AVG(position) AS avg_position,
-				AVG(rating) AS avg_rating,
-				AVG(distance) AS avg_distance_furlongs,
-				AVG(sp_odds) AS sp_odds,
-				GROUP_CONCAT(position, ', ') AS all_positions,
-				GROUP_CONCAT(distance, ', ') AS all_distances,
-				GROUP_CONCAT(racecourse, ', ') AS all_racecources,
-				GROUP_CONCAT(DATE(race_date), ', ') AS all_race_dates 
-			FROM
-				SelectionsForm	WHERE selection_id = ?  order by race_date desc limit ?`, selection.ID, selectionCount[0].NumberOfRuns)
+		// Execute the quer
+
+		// Start building the base query
+		query := `
+					SELECT
+						COALESCE(selection_id, 0),
+						selection_name,	
+						substr(position, 1, 1) as position, 
+						Age,
+						Trainer,
+						Sex,
+						Sire,
+						Dam,
+						Owner,	
+						Class,					
+						COUNT(*) AS num_runs,
+						MAX(race_date) AS last_run_date,
+						MAX(race_date) - MIN(race_date) AS duration,
+						COUNT(CASE WHEN position = '1' THEN 1 END) AS win_count,
+						AVG(CAST(substr(position, 1, 1) AS INTEGER)) AS avg_position,
+						AVG(rating) AS avg_rating,
+						AVG(distance) AS avg_distance_furlongs,
+						AVG(sp_odds) AS sp_odds,
+						GROUP_CONCAT(class, ', ') AS all_classes,
+						GROUP_CONCAT(race_type, ', ') AS all_race_types,
+						GROUP_CONCAT(position, ', ') AS all_positions,
+						GROUP_CONCAT(distance, ', ') AS all_distances,
+						GROUP_CONCAT(racecourse, ', ') AS all_racecourses,
+						GROUP_CONCAT(DATE(race_date), ', ') AS all_race_dates 
+					FROM SelectionsForm
+					WHERE selection_id = ?`
+
+		// Initialize a slice for query parameters
+		params := []interface{}{selection.ID} // Include the selection.ID first
+
+		// Add dynamic year filtering
+		if len(years) > 0 {
+			yearPlaceholders := make([]string, len(years))
+			for i := range years {
+				yearPlaceholders[i] = "?"
+				params = append(params, years[i]) // Append year to params
+			}
+			query += " AND strftime('%Y', race_date) IN (" + strings.Join(yearPlaceholders, ", ") + ")"
+		}
+
+		// Add dynamic position filtering
+		if len(positions) > 0 {
+			positionPlaceholders := make([]string, len(positions))
+			for i := range positions {
+				positionPlaceholders[i] = "position LIKE ?"
+				params = append(params, positions[i]+"%") // Append position with wildcard to params
+			}
+			query += " AND (" + strings.Join(positionPlaceholders, " OR ") + ")"
+		}
+
+		// Add dynamic age filtering
+		if len(ages) > 0 {
+			agePlaceholders := make([]string, len(ages))
+			for i := range ages {
+				agePlaceholders[i] = "Age LIKE ?"
+				params = append(params, ages[i]+"%") // Append age with wildcard to params
+			}
+			query += " AND (" + strings.Join(agePlaceholders, " OR ") + ")"
+		}
+
+		// Add GROUP BY and ORDER BY clauses
+		query += `
+    GROUP BY selection_id, selection_name, Age, Trainer, Sex, Sire, Dam, Owner, Class
+    ORDER BY race_date DESC`
+
+		// Execute the query with dynamically constructed query string and parameters
+		rows, err := db.Query(query, params...)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if err != nil {
+			log.Fatal(err)
+		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -99,6 +157,7 @@ func RacePicksSimulation(c *gin.Context) {
 		defer rows.Close()
 
 		var data models.AnalysisData
+
 		for rows.Next() {
 			err := rows.Scan(
 				&data.SelectionID,
@@ -119,6 +178,8 @@ func RacePicksSimulation(c *gin.Context) {
 				&data.AvgRating,
 				&data.AvgDistanceFurlongs,
 				&data.AvgOdds,
+				&data.AllClasses,
+				&data.AllRaceTypes,
 				&data.AllPositions,
 				&data.AllDistances,
 				&data.AllCources,
@@ -131,19 +192,15 @@ func RacePicksSimulation(c *gin.Context) {
 		analysisData = append(analysisData, data)
 	}
 
-	//  Order this slice by slectionId
-	// sort.Slice(selectonsForm, func(i, j int) bool {
-	// 	return selectonsForm[i].SelectionID < selectonsForm[j].SelectionID
-	// })
-
 	mapResult := make(map[int64]models.SelectionResult)
 	var sortedResults []models.SelectionResult
 
 	result := models.SelectionResult{}
+
 	for id, selecion := range selections {
 
 		if selecion.ID == int64(analysisData[id].SelectionID) {
-			totalScore := ScoreSelection(analysisData[id], raceParams)
+			totalScore := ScoreSelection(analysisData[id], raceParams, selectionCount[0].NumberOfRuns)
 			result.EventName = selecion.EventName
 			result.EventTime = selecion.EventTime
 			result.SelectionName = selecion.Name
@@ -157,10 +214,9 @@ func RacePicksSimulation(c *gin.Context) {
 			mapResult[selecion.ID] = result
 
 		}
-	}
-
-	for _, result := range mapResult {
-		sortedResults = append(sortedResults, result)
+		if result.TotalScore > 0 {
+			sortedResults = append(sortedResults, result)
+		}
 	}
 
 	// Step 2: Sort the slice by TotalScore
@@ -168,7 +224,17 @@ func RacePicksSimulation(c *gin.Context) {
 		return sortedResults[i].TotalScore > sortedResults[j].TotalScore
 	})
 
-	c.JSON(http.StatusOK, gin.H{"simulationResults": sortedResults})
+	// Remove duplicate selection.Name
+	var uniqueResults []models.SelectionResult
+	uniqueNames := make(map[string]bool)
+	for _, result := range sortedResults {
+		if !uniqueNames[result.EventTime] {
+			uniqueNames[result.EventTime] = true
+			uniqueResults = append(uniqueResults, result)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"simulationResults": uniqueResults})
 }
 
 func fetchConstantScore(db *sql.DB, category, item string) (float64, error) {
@@ -415,84 +481,131 @@ func stringInSlice(target string, slice []string) bool {
 }
 
 // Scoring Function
-func ScoreSelection(selection models.AnalysisData, params models.RaceParameters) float64 {
+func ScoreSelection(selection models.AnalysisData, params models.RaceParameters, limit int) float64 {
 	var score float64
 
-	// 1. Race Type Match
+	// 1. Class Analysis
+	if strings.Contains(selection.AllClasses, "1") {
+		score += 5
+	}
+	if strings.Contains(selection.AllClasses, "2") {
+		score += 3
+	}
+	if strings.Contains(selection.AllClasses, "3") {
+		score += 2
+	}
+
+	if strings.Contains(selection.AllRaceTypes, "HURDLE") {
+		score += 5
+	}
+	if strings.Contains(selection.AllRaceTypes, "FLAT") {
+		score += 3
+	}
+
+	// 2. Cousre Analysis
+	strRaceCourses := strings.Split(selection.AllCources, ",")
+	var limitedCourses []string
+	if len(strRaceCourses) >= limit {
+		limitedCourses = strRaceCourses[:limit]
+	} else {
+		limitedCourses = strRaceCourses[:len(strRaceCourses)]
+	}
+
+	for _, course := range limitedCourses {
+		course = strings.TrimSpace(course)
+		courseScore, err := fetchConstantScore(database.Database.DB, "Course", course)
+		if err != nil {
+			score -= 1
+		}
+		score += courseScore
+
+	}
+
+	// 3. Race Distance Analysis
+	strDistances := strings.Split(selection.AllDistances, ",")
+	var limitedDistances []string
+	if len(strDistances) >= limit {
+		limitedDistances = strDistances[:limit]
+	} else {
+		limitedDistances = strDistances[:len(strDistances)]
+	}
+	var floadDistance float64
+	for _, distance := range limitedDistances {
+		distance = strings.Trim(distance, " ")
+		strDistance := convertDistance(distance)
+		fd, _ := strconv.ParseFloat(strDistance, 64)
+		floadDistance += fd
+
+	}
+	avrDistance := floadDistance / float64(len(strDistances))
+
+	// 4. Race Type Match and Distance Analysis
 	if strings.EqualFold(params.RaceType, "HURDLE") {
-		score += 10 // Increase score if the race type matches the preferred type
+
+		distanceDiff := math.Abs(avrDistance - selection.AvgDistanceFurlongs)
+		if distanceDiff < 3.2 {
+			score += 5 // High score for close distance match
+		}
 	}
 	if strings.EqualFold(params.RaceType, "FLAT") {
-		score += 10 // Increase score if the race type matches the preferred type
+		distanceDiff := math.Abs(avrDistance - selection.AvgDistanceFurlongs)
+		if distanceDiff < 2.2 {
+			score += 5 // High score for close distance match
+		}
+
 	}
 
-	// 2. Race Distance Similarity
-	floadDistance, _ := strconv.ParseFloat(params.RaceDistance, 64)
-	distanceDiff := math.Abs(floadDistance - selection.AvgDistanceFurlongs)
-	if distanceDiff < 2.2 {
-		score += 20 // High score for close distance match
-	} else if distanceDiff < 3.0 {
-		score += 10 // Medium score for a decent distance match
-	} else {
-		score -= 5 // Penalty for a large distance mismatch
-	}
+	// Postion Analysis
+	strPostion := strings.Split(selection.AllPositions, ",")
 
-	//  split the selection age and take first element
-	intAge, _ := strconv.Atoi(strings.Split(selection.Age, " ")[0])
-
-	if selection.AvgDistanceFurlongs > 12.0 {
-
-		if intAge > 5.0 {
-			score += 10 // Increase score if the horse is older than 6 years
-
-		} else {
-			score -= 5 // Penalty for class mismatch
+	for _, postion := range strPostion {
+		if strings.Contains(postion, "F") {
+			score -= 2
+		}
+		if strings.Contains(postion, "PU") {
+			score -= 2
+		}
+		if strings.Contains(postion, "U") {
+			score -= 2
+		}
+		if strings.Contains(postion, "R") {
+			score -= 2
 		}
 	}
 
-	if selection.AvgDistanceFurlongs < 12 {
+	var limitedPostion []string
 
-		if intAge < 5 {
-			score += 10 // Increase score if the horse is older than 6 years
-		} else {
-			score -= 5 // Penalty for class mismatch
+	if len(strPostion) >= limit {
+
+		limitedPostion = strPostion[:limit]
+	} else {
+		limitedPostion = strPostion[:len(strPostion)]
+	}
+
+	for _, postion := range limitedPostion {
+		if strings.Contains(postion, "/") {
+
+			p := strings.Split(postion, "/")
+			numerator, err := strconv.Atoi(strings.TrimSpace(p[0]))
+			if err != nil {
+				score -= 1
+			}
+			denominator, err := strconv.Atoi(strings.TrimSpace(p[1]))
+			if err != nil {
+				score -= 1
+			}
+			score += math.Round(safeDivide(float64(denominator), float64(numerator)))
 		}
 	}
 
-	// 6. Recent Performance (Duration since last run)
-	if selection.Duration == 4 {
-		score += 10 // Good recent performance if the last run was within 30 days
-	} else if selection.Duration == 5 {
-		score += 5 // Moderate recent performance if the last run was within 60 days
-	} else {
-		score -= 5 // Penalty for poor recent performance
-	}
-	// 7. Consistency (Average Position)
-	if selection.AvgPosition < 4.0 {
-		score += 20 // High score for good average position
-	} else if selection.AvgPosition < 6.0 {
-		score += 10 // Moderate score for average position
-	} else {
-		score -= 5 // Penalty for poor average position
-	}
-
-	// 8. Winning Potential (Number of Wins)
-	if selection.WinCount > 4 {
-		score += 15 // High score for many wins
-	} else if selection.WinCount > 2 {
-		score += 7 // Moderate score for a few wins
-	} else {
-		score -= 5 // Penalty for low win count
-	}
-
-	// 9 Average rating
-	if selection.AvgRating > 50 {
-		score += 10 // High score for good average rating
-
-	} else {
-		score -= 5 // Penalty for low average rating
-	}
-
-	// Final score return
 	return score
+}
+
+func safeDivide(numerator, denominator float64) float64 {
+	if denominator == 0.0 {
+		// Handle division by zero case, maybe return 0 or some other default value.
+		fmt.Println("Warning: Division by zero detected.")
+		return math.Inf(1) // Or return a different value that makes sense in your context.
+	}
+	return numerator / denominator
 }
