@@ -42,8 +42,8 @@ func RacePicksSimulation(c *gin.Context) {
 			   event_time,
 			   price
 		FROM EventRunners
-		WHERE DATE(event_date) = ? AND event_name = ?`,
-		raceParams.EventDate, raceParams.EventName)
+		WHERE DATE(event_date) = ? `,
+		raceParams.EventDate)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -71,37 +71,35 @@ func RacePicksSimulation(c *gin.Context) {
 	// var selectonsForm []models.SelectionForm
 	var analysisData []models.AnalysisData
 	for _, selection := range selections {
-		// Execute the quer
-
 		// Start building the base query
 		query := `
-					SELECT
-						COALESCE(selection_id, 0),
-						selection_name,	
-						substr(position, 1, 1) as position, 
-						Age,
-						Trainer,
-						Sex,
-						Sire,
-						Dam,
-						Owner,	
-						Class,					
-						COUNT(*) AS num_runs,
-						MAX(race_date) AS last_run_date,
-						MAX(race_date) - MIN(race_date) AS duration,
-						COUNT(CASE WHEN position = '1' THEN 1 END) AS win_count,
-						AVG(CAST(substr(position, 1, 1) AS INTEGER)) AS avg_position,
-						AVG(rating) AS avg_rating,
-						AVG(distance) AS avg_distance_furlongs,
-						AVG(sp_odds) AS sp_odds,
-						GROUP_CONCAT(class, ', ') AS all_classes,
-						GROUP_CONCAT(race_type, ', ') AS all_race_types,
-						GROUP_CONCAT(position, ', ') AS all_positions,
-						GROUP_CONCAT(distance, ', ') AS all_distances,
-						GROUP_CONCAT(racecourse, ', ') AS all_racecourses,
-						GROUP_CONCAT(DATE(race_date), ', ') AS all_race_dates 
-					FROM SelectionsForm
-					WHERE selection_id = ?`
+			SELECT
+				COALESCE(selection_id, 0),
+				selection_name,	
+				substr(position, 1, 1) as position, 
+				Age,
+				Trainer,
+				Sex,
+				Sire,
+				Dam,
+				Owner,	
+				Class,					
+				COUNT(*) AS num_runs,
+				MAX(race_date) AS last_run_date,
+				MAX(race_date) - MIN(race_date) AS duration,
+				COUNT(CASE WHEN position = '1' THEN 1 END) AS win_count,
+				AVG(CAST(substr(position, 1, 1) AS INTEGER)) AS avg_position,
+				AVG(rating) AS avg_rating,
+				AVG(distance) AS avg_distance_furlongs,
+				AVG(sp_odds) AS sp_odds,
+				GROUP_CONCAT(class, ', ') AS all_classes,
+				GROUP_CONCAT(race_type, ', ') AS all_race_types,
+				GROUP_CONCAT(position, ', ') AS all_positions,
+				GROUP_CONCAT(distance, ', ') AS all_distances,
+				GROUP_CONCAT(racecourse, ', ') AS all_racecourses,
+				GROUP_CONCAT(DATE(race_date), ', ') AS all_race_dates 
+			FROM SelectionsForm
+			WHERE selection_id = ?`
 
 		// Initialize a slice for query parameters
 		params := []interface{}{selection.ID} // Include the selection.ID first
@@ -110,10 +108,11 @@ func RacePicksSimulation(c *gin.Context) {
 		if len(years) > 0 {
 			yearPlaceholders := make([]string, len(years))
 			for i := range years {
-				yearPlaceholders[i] = "?"
-				params = append(params, years[i]) // Append year to params
+				yearPlaceholders[i] = "strftime('%Y', race_date) = ?"
+				year := strings.TrimSpace(years[i])
+				params = append(params, year) // Append year to params
 			}
-			query += " AND strftime('%Y', race_date) IN (" + strings.Join(yearPlaceholders, ", ") + ")"
+			query += " AND selection_id NOT IN (SELECT selection_id FROM SelectionsForm WHERE " + strings.Join(yearPlaceholders, " OR ") + ")"
 		}
 
 		// Add dynamic position filtering
@@ -121,9 +120,10 @@ func RacePicksSimulation(c *gin.Context) {
 			positionPlaceholders := make([]string, len(positions))
 			for i := range positions {
 				positionPlaceholders[i] = "position LIKE ?"
-				params = append(params, positions[i]+"%") // Append position with wildcard to params
+				position := strings.TrimSpace(positions[i])
+				params = append(params, position+"%") // Append position with wildcard to params
 			}
-			query += " AND (" + strings.Join(positionPlaceholders, " OR ") + ")"
+			query += " AND selection_id NOT IN (SELECT selection_id FROM SelectionsForm WHERE " + strings.Join(positionPlaceholders, " OR ") + ")"
 		}
 
 		// Add dynamic age filtering
@@ -131,15 +131,16 @@ func RacePicksSimulation(c *gin.Context) {
 			agePlaceholders := make([]string, len(ages))
 			for i := range ages {
 				agePlaceholders[i] = "Age LIKE ?"
-				params = append(params, ages[i]+"%") // Append age with wildcard to params
+				age := strings.TrimSpace(ages[i])
+				params = append(params, age+"%") // Append age with wildcard to params
 			}
-			query += " AND (" + strings.Join(agePlaceholders, " OR ") + ")"
+			query += " AND selection_id NOT IN (SELECT selection_id FROM SelectionsForm WHERE " + strings.Join(agePlaceholders, " OR ") + ")"
 		}
 
 		// Add GROUP BY and ORDER BY clauses
 		query += `
-    GROUP BY selection_id, selection_name, Age, Trainer, Sex, Sire, Dam, Owner, Class
-    ORDER BY race_date DESC`
+			GROUP BY selection_id, selection_name, Age, Trainer, Sex, Sire, Dam, Owner, Class
+			ORDER BY race_date DESC`
 
 		// Execute the query with dynamically constructed query string and parameters
 		rows, err := db.Query(query, params...)
@@ -147,13 +148,6 @@ func RacePicksSimulation(c *gin.Context) {
 			log.Fatal(err)
 		}
 
-		if err != nil {
-			log.Fatal(err)
-		}
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
 		defer rows.Close()
 
 		var data models.AnalysisData
@@ -188,8 +182,8 @@ func RacePicksSimulation(c *gin.Context) {
 			if err != nil {
 				continue
 			}
-
 		}
+
 		if data.SelectionID != 0 {
 			analysisData = append(analysisData, data)
 		}
@@ -205,7 +199,7 @@ func RacePicksSimulation(c *gin.Context) {
 		selectionsIds = append(selectionsIds, data.SelectionID)
 	}
 
-	newSelections := filterSelectionsByID(selections, selectionsIds)		
+	newSelections := filterSelectionsByID(selections, selectionsIds)
 
 	for id, selecion := range newSelections {
 
@@ -224,44 +218,46 @@ func RacePicksSimulation(c *gin.Context) {
 			mapResult[selecion.ID] = result
 
 			sortedResults = append(sortedResults, result)
-		}	
+		}
 
 	}
 
 	// Step 2: Sort the slice by TotalScore
 	sort.Slice(sortedResults, func(i, j int) bool {
-		return sortedResults[i].TotalScore > sortedResults[j].TotalScore
+		return sortedResults[i].EventName > sortedResults[j].EventName
 	})
 
+	// Get the highest score selection for each event time
+	highestScoresByTime := getHighestScoreByTime(sortedResults)
+	// highestScoresByTime := getSecondHighestScoreByTime(sortedResults)
 
-	var uniqueResults []models.SelectionResult
-	uniqueNames := make(map[string]bool)
-	for _, result := range sortedResults {
-		if !uniqueNames[result.EventTime] {
-			uniqueNames[result.EventTime] = true
-			uniqueResults = append(uniqueResults, result)
+	    // Group the results by EventName		
+		groupedResults := make(map[string][]models.SelectionResult)
+		for _, result := range highestScoresByTime {
+			groupedResults[result.EventName] = append(groupedResults[result.EventName], result)
 		}
-	}
 
-	c.JSON(http.StatusOK, gin.H{"simulationResults": uniqueResults})
+		   
+	
+
+	c.JSON(http.StatusOK, gin.H{"simulationResults": groupedResults})
 }
 
 func filterSelectionsByID(selections []common.Selection, ids []int) []common.Selection {
-    idSet := make(map[int]struct{})
-    for _, id := range ids {
-        idSet[id] = struct{}{}
-    }
+	idSet := make(map[int]struct{})
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
 
-    var filteredSelections []common.Selection
-    for _, selection := range selections {
-        if _, exists := idSet[selection.ID]; exists {
-            filteredSelections = append(filteredSelections, selection)
-        }
-    }
+	var filteredSelections []common.Selection
+	for _, selection := range selections {
+		if _, exists := idSet[selection.ID]; exists {
+			filteredSelections = append(filteredSelections, selection)
+		}
+	}
 
-    return filteredSelections
+	return filteredSelections
 }
-
 
 func fetchConstantScore(db *sql.DB, category, item string) (float64, error) {
 	var score float64
@@ -528,7 +524,8 @@ func ScoreSelection(selection models.AnalysisData, params models.RaceParameters,
 	if len(strRaceCourses) >= limit {
 		limitedCourses = strRaceCourses[:limit]
 	} else {
-		limitedCourses = strRaceCourses[:len(strRaceCourses)]
+		limitedCourses = strRaceCourses[:]
+		score += 5
 	}
 
 	for _, course := range limitedCourses {
@@ -563,16 +560,20 @@ func ScoreSelection(selection models.AnalysisData, params models.RaceParameters,
 	if strings.EqualFold(params.RaceType, "HURDLE") {
 
 		distanceDiff := math.Abs(avrDistance - selection.AvgDistanceFurlongs)
-		if distanceDiff < 3.2 {
+		if distanceDiff < 3.0 && distanceDiff > 1.0 {
 			score += 5 // High score for close distance match
 		}
 	}
 	if strings.EqualFold(params.RaceType, "FLAT") {
 		distanceDiff := math.Abs(avrDistance - selection.AvgDistanceFurlongs)
-		if distanceDiff < 2.2 {
+		if distanceDiff < 2.2 && distanceDiff > 0.5 {
 			score += 5 // High score for close distance match
 		}
 
+	}
+	distanceDiff := math.Abs(avrDistance - selection.AvgDistanceFurlongs)
+	if distanceDiff < 2.2 && distanceDiff > 0.5 {
+		score += 5 // High score for close distance match
 	}
 
 	// Postion Analysis
@@ -630,3 +631,44 @@ func safeDivide(numerator, denominator float64) float64 {
 	return numerator / denominator
 }
 
+// Function to get the highest score selection for each event time
+func getHighestScoreByTime(sortedResults []models.SelectionResult) map[string]models.SelectionResult {
+    // Group the results by EventTime
+    groupedResults := make(map[string]models.SelectionResult)
+    
+    for _, result := range sortedResults {
+        currentBest, exists := groupedResults[result.EventTime]
+        if !exists || result.TotalScore > currentBest.TotalScore {
+            groupedResults[result.EventTime] = result
+        }
+    }
+    
+    return groupedResults
+}
+
+// Function to get the second highest score selection for each event time
+func getSecondHighestScoreByTime(sortedResults []models.SelectionResult) map[string]models.SelectionResult {
+    // Group the results by EventTime
+    groupedResults := make(map[string][]models.SelectionResult)
+    
+    for _, result := range sortedResults {
+        groupedResults[result.EventTime] = append(groupedResults[result.EventTime], result)
+    }
+    
+    // Prepare the map to store the second highest score selections
+    secondHighestResults := make(map[string]models.SelectionResult)
+    
+    for time, results := range groupedResults {
+        // Sort the results by TotalScore in descending order
+        sort.Slice(results, func(i, j int) bool {
+            return results[i].TotalScore > results[j].TotalScore
+        })
+        
+        // Check if there are at least two results to get the second highest
+        if len(results) > 1 {
+            secondHighestResults[time] = results[1] // Index 1 is the second highest
+        }
+    }	
+    
+    return secondHighestResults
+}
