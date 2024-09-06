@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mmanjoura/race-picks-backend/pkg/api/common"
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
 	"github.com/mmanjoura/race-picks-backend/pkg/models"
 
@@ -82,10 +83,18 @@ func GetMeetingRunners(c *gin.Context) {
 
 	// Get today's runners for the given event_name and event_date
 	rows, err = db.Query(`
-			SELECT 	selection_id, 
-					selection_name, 
-					event_date FROM 
-					EventRunners WHERE  
+		SELECT selection_id,
+			selection_name,
+			event_name,
+			event_date,
+			event_time,
+			race_distance,
+			race_category,
+			track_condition,
+			number_of_runners,
+			race_track,
+			race_class
+		FROM EventRunners WHERE  
 					event_name = ? and event_time = ? and DATE(event_date) = ?`,
 		eventName, eventTime, eventDate)
 	if err != nil {
@@ -95,13 +104,21 @@ func GetMeetingRunners(c *gin.Context) {
 	defer rows.Close()
 
 	var analysisData []models.AnalysisData
-	var selections []Selection
+	var selections []common.Selection
 	for rows.Next() {
-		var selection Selection
+		var selection common.Selection
 		err := rows.Scan(
 			&selection.ID,
 			&selection.Name,
+			&selection.EventName,
 			&selection.EventDate,
+			&selection.EventTime,
+			&selection.RaceDistance,
+			&selection.RaceCategory,
+			&selection.TrackCondition,
+			&selection.NumberOfRunners,
+			&selection.RaceTrack,
+			&selection.RaceClass,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -111,7 +128,20 @@ func GetMeetingRunners(c *gin.Context) {
 			continue
 		}
 		selections = append(selections, selection)
+
 	}
+	raceConditon := models.RaceConditon{}
+	if len(selections) > 0 {
+		raceConditon = models.RaceConditon{
+			RaceCategory:    selections[0].RaceCategory,
+			RaceDistance:	selections[0].RaceDistance,
+			TrackCondition:  selections[0].TrackCondition,
+			NumberOfRunners: selections[0].NumberOfRunners,
+			RaceTrack:       selections[0].RaceTrack,
+			RaceClass:       selections[0].RaceClass,
+		}
+	}
+	analysisDataResponse.RaceConditon = raceConditon
 
 	for _, selection := range selections {
 
@@ -198,7 +228,6 @@ func GetMeetingRunners(c *gin.Context) {
 	}
 
 	for i, data := range analysisData {
-		
 
 		recoveryDays, err := getRecoveryDays(data.SelectionID, eventDate)
 		if err != nil {
@@ -230,36 +259,33 @@ func GetMeetingRunners(c *gin.Context) {
 		return
 	}
 
+	// Sorting logic
+	sort.Slice(analysisData, func(i, j int) bool {
+		// Sort by winner positions (1, 2, 3) first
+		positions := map[int]bool{1: true, 2: true, 3: true}
+		posI, posJ := analysisData[i].WinLose.Position, analysisData[j].WinLose.Position
 
-		// Sorting logic
-		sort.Slice(analysisData, func(i, j int) bool {
-			// Sort by winner positions (1, 2, 3) first
-			positions := map[int]bool{1: true, 2: true, 3: true}
-			posI, posJ := analysisData[i].WinLose.Position, analysisData[j].WinLose.Position
+		pi, err := strconv.Atoi(posI)
+		if err != nil {
+			pi = 0
+		}
+		pj, err := strconv.Atoi(posJ)
+		if err != nil {
+			pj = 0
+		}
 
-			pi, err := strconv.Atoi(posI)
-			if err != nil {
-				pi = 0
-			}
-			pj, err := strconv.Atoi(posJ)
-			if err != nil {
-				pj = 0
-			}
-	
-			if positions[pi] && !positions[pj] {
-				return true
-			} else if !positions[pi] && positions[pj] {
-				return false
-			} else if posI != posJ {
-				return posI < posJ
-			}
-			
-	
-			// Then by average position
-			return analysisData[i].AvgPosition < analysisData[j].AvgPosition
-		})
-		analysisDataResponse.Selections = analysisData
-	
+		if positions[pi] && !positions[pj] {
+			return true
+		} else if !positions[pi] && positions[pj] {
+			return false
+		} else if posI != posJ {
+			return posI < posJ
+		}
+
+		// Then by average position
+		return analysisData[i].AvgPosition < analysisData[j].AvgPosition
+	})
+	analysisDataResponse.Selections = analysisData
 
 	// Return the meeting data
 	c.JSON(http.StatusOK, gin.H{"analysisDataResponse": analysisDataResponse})
@@ -418,4 +444,3 @@ func average(values []float64) float64 {
 	}
 	return sum / float64(len(values))
 }
-

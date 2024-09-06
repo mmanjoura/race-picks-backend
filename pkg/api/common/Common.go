@@ -5,44 +5,43 @@ import (
 	"strings"
 )
 
+
 type Selection struct {
-	ID        int  `json:"id"`
-	Name      string `json:"name"`
-	EventName string `json:"event_name"`
-	EventDate string `json:"event_date"`
-	EventTime string `json:"event_time"`
-	Distance  string `json:"event_distance"`
-	Odds      string `json:"odds"`
+	ID              int    `json:"id"`
+	Name            string `json:"name"`
+	EventName       string `json:"event_name"`
+	EventDate       string `json:"event_date"`
+	EventTime       string `json:"event_time"`
+	Odds            string `json:"odds"`
+	RaceCategory    string `json:"race_category"`
+	RaceDistance    string `json:"race_distance"`
+	TrackCondition  string `json:"track_condition"`
+	NumberOfRunners string `json:"number_of_runners"`
+	RaceTrack       string `json:"race_track"`
+	RaceClass       string `json:"race_class"`
 }
 
-func ParseDistance(distanceStr string) int {
-	// Example formats:
-	// "2m 4f 97y" -> 4577 yards
-	// "2m 3f 210y" -> 4482 yards
-	// "1m 6f" -> 3520 yards
-	// "6f" -> 1320 yards
-	var yards int
+// Helper function to parse race distance considering miles, furlongs, and yards
+func ParseDistance(dist string) float64 {
+	var totalFurlongs float64
 
-	// Split into components
-	parts := strings.Fields(distanceStr)
+	// Split the distance string into components (miles, furlongs, yards)
+	parts := strings.Split(dist, " ")
 
 	for _, part := range parts {
-		if strings.HasSuffix(part, "m") {
-			// Convert miles to yards (1 mile = 1760 yards)
-			miles, _ := strconv.Atoi(strings.TrimSuffix(part, "m"))
-			yards += miles * 1760
-		} else if strings.HasSuffix(part, "f") {
-			// Convert furlongs to yards (1 furlong = 220 yards)
-			furlongs, _ := strconv.Atoi(strings.TrimSuffix(part, "f"))
-			yards += furlongs * 220
-		} else if strings.HasSuffix(part, "y") {
-			// Convert yards directly
-			additionalYards, _ := strconv.Atoi(strings.TrimSuffix(part, "y"))
-			yards += additionalYards
+		if strings.HasSuffix(part, "m") { // Handle miles
+			miles, _ := strconv.ParseFloat(strings.TrimSuffix(part, "m"), 64)
+			totalFurlongs += miles * 8.0 // 1 mile = 8 furlongs
+		} else if strings.HasSuffix(part, "f") { // Handle furlongs
+			furlongs, _ := strconv.ParseFloat(strings.TrimSuffix(part, "f"), 64)
+			totalFurlongs += furlongs
+		} else if strings.HasSuffix(part, "y") { // Handle yards
+			yards, _ := strconv.ParseFloat(strings.TrimSuffix(part, "y"), 64)
+			totalFurlongs += yards / 220.0 // 1 furlong = 220 yards
 		}
 	}
 
-	return yards
+	return totalFurlongs
 }
 
 func Abs(x int) int {

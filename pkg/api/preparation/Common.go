@@ -83,6 +83,7 @@ func SaveSelectionForm(db *sql.DB, selectionsForm []models.SelectionsForm, c *gi
         INSERT INTO SelectionsForm (
 			selection_name,
 			selection_id,
+			race_class,
 			race_date,
 			position,
 			rating,
@@ -90,7 +91,7 @@ func SaveSelectionForm(db *sql.DB, selectionsForm []models.SelectionsForm, c *gi
 			racecourse,
 			distance,
 			going,
-			class,
+
 			sp_odds,
 			Age,
 			Trainer,
@@ -102,9 +103,9 @@ func SaveSelectionForm(db *sql.DB, selectionsForm []models.SelectionsForm, c *gi
 			updated_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			selectionName, selectionID, selectionForm.RaceDate, selectionForm.Position,
+			selectionName, selectionID, selectionForm.RaceClass, selectionForm.RaceDate, selectionForm.Position,
 			selectionForm.Rating, selectionForm.RaceType, selectionForm.Racecourse,
-			selectionForm.Distance, selectionForm.Going, selectionForm.Class,
+			selectionForm.Distance, selectionForm.Going, 
 			selectionForm.SPOdds, selectionForm.Age, selectionForm.Trainer,
 			selectionForm.Sex, selectionForm.Sire, selectionForm.Dam, selectionForm.Owner,
 			time.Now(),
@@ -183,7 +184,7 @@ func GetAll(selectionLink string) ([]models.SelectionsForm, error) {
 			Racecourse: racecourse,
 			Distance:   distance,
 			Going:      going,
-			Class:      class,
+			RaceClass:      class,
 			SPOdds:     spOdds,
 			RaceURL:    raceLink,
 			EventDate:  parsedDate,
@@ -235,7 +236,6 @@ func GetLatest(selectionLink string, lasRuntDate time.Time) ([]models.Selections
 		class := e.ChildText("td:nth-child(8)")
 		spOdds := e.ChildText("td:nth-child(9)")
 
-
 		// Split the date by "/" and add the current year
 		dateParts := strings.Split(raceDate, "/")
 		raceDate = "20" + dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]
@@ -256,7 +256,7 @@ func GetLatest(selectionLink string, lasRuntDate time.Time) ([]models.Selections
 			Racecourse: racecourse,
 			Distance:   distance,
 			Going:      going,
-			Class:      class,
+			RaceClass:  class,
 			SPOdds:     spOdds,
 			RaceURL:    raceLink,
 			EventDate:  parsedRaceDate,
@@ -281,4 +281,3 @@ func GetLatest(selectionLink string, lasRuntDate time.Time) ([]models.Selections
 
 	return selectionsForm, nil
 }
-

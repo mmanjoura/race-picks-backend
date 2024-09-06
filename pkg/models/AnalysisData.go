@@ -5,8 +5,9 @@ import (
 )
 
 type AnalysisDataResponse struct {
-	Parameters OptimalParameters `json:"parameters"`
-	Selections []AnalysisData    `json:"selections"`
+	Parameters   OptimalParameters `json:"parameters"`
+	Selections   []AnalysisData    `json:"selections"`
+	RaceConditon RaceConditon      `json:"race_condition"`
 }
 
 type AnalysisData struct {
@@ -33,6 +34,7 @@ type AnalysisData struct {
 	AvgRating           float64           `json:"avg_rating"`
 	AvgDistanceFurlongs float64           `json:"avg_distance_furlongs"`
 	AvgOdds             float64           `json:"avg_odds"`
+	AllRatings          string            `json:"all_ratings"`
 	AllClasses          string            `json:"all_classes"`
 	AllRaceTypes        string            `json:"all_race_types"`
 	AllPositions        string            `json:"all_positions"`
@@ -43,6 +45,7 @@ type AnalysisData struct {
 	Parameters          OptimalParameters `json:"weight_parameters"`
 	WinLose             WinLose           `json:"win_lose"`
 	TotalScore          float64           `json:"total_score"`
+	CurrentDistance     float64           `json:"current_distance"`
 	CreateAt            time.Time         `json:"created_at"`
 	UpdatedAt           time.Time         `json:"updated_at"`
 }
@@ -72,10 +75,9 @@ type RaceParameters struct {
 	EventName    string `json:"event_name"`
 	EventDate    string `json:"event_date"`
 	EventTime    string `json:"event_time"`
-	Positions   string `json:"positions"`
-	Years       string `json:"years"`
-	Ages        string `json:"ages"`
-
+	Positions    string `json:"positions"`
+	Years        string `json:"years"`
+	Ages         string `json:"ages"`
 }
 
 type CurrentHorseData struct {
