@@ -107,18 +107,21 @@ func GetMeetingRunners(c *gin.Context) {
 	var selections []common.Selection
 	for rows.Next() {
 		var selection common.Selection
+		// Use sql.NullString for nullable fields
+		var selectionName, eventName, eventDate, eventTime, raceDistance, raceCategory, trackCondition, numberOfRunners, raceTrack, raceClass sql.NullString
+
 		err := rows.Scan(
 			&selection.ID,
-			&selection.Name,
-			&selection.EventName,
-			&selection.EventDate,
-			&selection.EventTime,
-			&selection.RaceDistance,
-			&selection.RaceCategory,
-			&selection.TrackCondition,
-			&selection.NumberOfRunners,
-			&selection.RaceTrack,
-			&selection.RaceClass,
+			&selectionName,
+			&eventName,
+			&eventDate,
+			&eventTime,
+			&raceDistance,
+			&raceCategory,
+			&trackCondition,
+			&numberOfRunners,
+			&raceTrack,
+			&raceClass,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -127,6 +130,17 @@ func GetMeetingRunners(c *gin.Context) {
 		if selection.ID == 0 {
 			continue
 		}
+		// Convert sql.NullString to regular strings
+		selection.Name = nullableToString(selectionName)
+		selection.EventName = nullableToString(eventName)
+		selection.EventDate = nullableToString(eventDate)
+		selection.EventTime = nullableToString(eventTime)
+		selection.RaceDistance = nullableToString(raceDistance)
+		selection.RaceCategory = nullableToString(raceCategory)
+		selection.TrackCondition = nullableToString(trackCondition)
+		selection.NumberOfRunners = nullableToString(numberOfRunners)
+		selection.RaceTrack = nullableToString(raceTrack)
+		selection.RaceClass = nullableToString(raceClass)
 		selections = append(selections, selection)
 
 	}
@@ -134,7 +148,7 @@ func GetMeetingRunners(c *gin.Context) {
 	if len(selections) > 0 {
 		raceConditon = models.RaceConditon{
 			RaceCategory:    selections[0].RaceCategory,
-			RaceDistance:	selections[0].RaceDistance,
+			RaceDistance:    selections[0].RaceDistance,
 			TrackCondition:  selections[0].TrackCondition,
 			NumberOfRunners: selections[0].NumberOfRunners,
 			RaceTrack:       selections[0].RaceTrack,
@@ -443,4 +457,11 @@ func average(values []float64) float64 {
 		sum += value
 	}
 	return sum / float64(len(values))
+}
+
+func nullableToString(ns sql.NullString) string {
+	if ns.Valid {
+		return ns.String
+	}
+	return "NULL"
 }

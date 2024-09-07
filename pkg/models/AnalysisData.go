@@ -144,6 +144,7 @@ type SelectionForm struct {
 }
 
 type SelectionResult struct {
+	SelectionID   int     `json:"selection_id"`
 	EventName     string  `json:"event_name"`
 	EventDate     string  `json:"event_date"`
 	EventTime     string  `json:"event_time"`
