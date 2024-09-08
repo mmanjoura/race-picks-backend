@@ -15,6 +15,14 @@ import (
 
 func GetRacingMarketData(c *gin.Context) {
 	db := database.Database.DB
+	var raceDate string
+
+	// Bind JSON input to optimalParams
+	if err := c.ShouldBindJSON(&raceDate); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 
 	todayRunners, err := getTodayRunners()
 	if err != nil {
