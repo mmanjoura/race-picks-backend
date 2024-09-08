@@ -1,7 +1,6 @@
 package preparation
 
 import (
-	"database/sql"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -16,24 +15,18 @@ import (
 
 func GetRacingMarketData(c *gin.Context) {
 	db := database.Database.DB
-	
-
-	type EventDate struct {
-		RaceDate string `json:"race_date"`
-	}
-
-	var eventDate EventDate
 
 
+	var raceDate models.EventDate
 
 	// Bind JSON input to optimalParams
-	if err := c.ShouldBindJSON(&eventDate); err != nil {
+	if err := c.ShouldBindJSON(&raceDate); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// todayRunners, err := getTodayRunners()
-	todayRunners, err := updateSelectionsData(db, c, eventDate.RaceDate)
+
+	todayRunners, err := getTodayRunners()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -183,8 +176,10 @@ func getEventConditons(eventLink string) models.RaceConditon {
 			trackCondition = parts[2]
 			numberOfRunners = parts[3]
 			raceTrack = parts[4]
-
+			
 		}
+
+
 
 		raceConditons = models.RaceConditon{
 
@@ -202,52 +197,4 @@ func getEventConditons(eventLink string) models.RaceConditon {
 	c.Visit("https://www.sportinglife.com" + eventLink)
 
 	return raceConditons
-}
-
-func updateSelectionsData(db *sql.DB, c *gin.Context, raceDate string) ([]models.TodayRunners, error) {
-
-	horses := []models.TodayRunners{}
-
-	// get the selection link from the database
-
-	// Query for today's runners
-	rows, err := db.Query(`
-			SELECT selection_name, selection_link, event_link, event_time, event_name, price, selection_id
-			FROM EventRunners where event_link not null and race_distance is null and DATE(event_date) = ?;`, raceDate)
-
-	for rows.Next() {
-		var name, selectionLink, eventLink, eventTime, eventName, price sql.NullString
-		var selectionId int
-		err := rows.Scan(&name, &selectionLink, &eventLink, &eventTime, &eventName, &price, &selectionId)
-
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return horses, err
-		}
-		defer rows.Close()
-
-		horse := models.TodayRunners{
-			SelectionName: nullableToString(name),
-			SelectionLink: nullableToString(selectionLink), // Add the selection link to the struct
-			EventLink:     nullableToString(eventLink),     // Add the event link to the struct
-			EventTime:     nullableToString(eventTime),
-			EventName:     nullableToString(eventName),
-			Price:         nullableToString(price),
-			SelectionID:   selectionId,
-		}
-
-		reaceConditons := getEventConditons(nullableToString(eventLink))
-
-		horse.RaceConditon = reaceConditons
-
-		horses = append(horses, horse)
-	}
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return horses, err
-	}
-	defer rows.Close()
-
-	return horses, nil
 }

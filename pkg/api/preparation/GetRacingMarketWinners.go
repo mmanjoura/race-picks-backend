@@ -1,6 +1,7 @@
 package preparation
 
 import (
+	"database/sql"
 	"net/http"
 	"time"
 
@@ -13,15 +14,35 @@ import (
 func GetRacingMarketWinners(c *gin.Context) {
 	db := database.Database.DB
 
+	var raceDate models.EventDate
+
+	// Bind JSON input to optimalParams
+	if err := c.ShouldBindJSON(&raceDate); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	currentTime := time.Now()
 	// Subtract one day to get the day before
 	dayBefore := currentTime.AddDate(0, 0, -1)
 	// Format the date as YYYY-MM-DD
 	formattedDate := dayBefore.Format("2006-01-02")
-	rows, err := db.Query(`select selection_id, selection_link, selection_name from EventRunners WHERE  DATE(event_date) = ?`, formattedDate)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+
+	var rows *sql.Rows
+	var err error
+
+	if raceDate.Date == currentTime.Format("2006-01-02") {
+		rows, err = db.Query(`select selection_id, selection_link, selection_name from EventRunners WHERE  DATE(event_date) = ?`, formattedDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		rows, err = db.Query(`select selection_id, selection_link, selection_name from EventRunners WHERE  DATE(event_date) = ?`, raceDate.Date)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	selections := []models.Selection{}

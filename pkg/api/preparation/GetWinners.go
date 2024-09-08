@@ -18,10 +18,10 @@ func MeetingWinners(c *gin.Context) {
 
 	var racePrdictions []models.SelectionResult
 
-	//  const response = await axios.get(`${baseURL}/preparation/GetWinners?event_date=` + selectedDate, {
+
 
 	// Query for today's runners
-	todayDate := c.Query("event_date")
+	date := c.Query("event_date")
 
 	rows, err := db.Query(`
 		SELECT selection_id,
@@ -33,7 +33,7 @@ func MeetingWinners(c *gin.Context) {
 			event_time,
 			selection_name,
 			odds
-		From RaceStatistics where DATE(event_date) = ?;`, todayDate)
+		From EventPredictions where DATE(event_date) = ?;`, date)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -110,7 +110,6 @@ func MeetingWinners(c *gin.Context) {
 		}
 	}
 
-
 	// Return the meeting data
 	c.JSON(http.StatusOK, gin.H{"predictions": todayBets})
 }
@@ -141,6 +140,5 @@ func calculateOdds(input string) (float64, error) {
 
 	result := numerator / denominator
 
-	
 	return result, nil
 }

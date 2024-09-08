@@ -97,6 +97,7 @@ func GetTodayPredictions(c *gin.Context) {
 
 	// Get the selection with the least number of runs
 	selectionCount, err := getSelectionWithLeastRuns(db, raceParams.EventName, raceParams.EventTime, raceParams.EventDate)
+	_ = selectionCount // Ignore the result if not needed
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -191,7 +192,8 @@ func GetTodayPredictions(c *gin.Context) {
 	result := models.SelectionResult{}
 	selectionsIds := []int{}
 
-	leastRuns := selectionCount[0].NumberOfRuns
+	// leastRuns := selectionCount[0].NumberOfRuns
+	leastRuns := 1
 	for _, data := range analysisData {
 		if data.NumRuns < leastRuns {
 			leastRuns = data.NumRuns
@@ -268,7 +270,7 @@ func insertPredictions(db *sql.DB, data models.SelectionResult) error {
 
 	// Prepare the INSERT statement
 	stmt, err := db.Prepare(`
-		INSERT INTO RaceStatistics (event_date, selection_id, selection_name, odds, clean_bet_score, average_position, average_rating, event_name, event_time)
+		INSERT INTO EventPredictions (event_date, selection_id, selection_name, odds, clean_bet_score, average_position, average_rating, event_name, event_time)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
@@ -290,7 +292,7 @@ func deletePredictions(db *sql.DB, eventDate string) error {
 	var exists bool
 	err := db.QueryRow(`
 		SELECT EXISTS (
-			SELECT 1 FROM RaceStatistics
+			SELECT 1 FROM EventPredictions
 			WHERE DATE(event_date) = ?
 		)
 	`, eventDate).Scan(&exists)
@@ -301,7 +303,7 @@ func deletePredictions(db *sql.DB, eventDate string) error {
 	// If a record exists, delete it
 	if exists {
 		_, err = db.Exec(`
-			DELETE FROM RaceStatistics
+			DELETE FROM EventPredictions
 			WHERE DATE(event_date) = ?
 		`, eventDate)
 		if err != nil {

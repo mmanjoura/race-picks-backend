@@ -31,3 +31,8 @@ type ScoreBreakdown struct {
 	DateScore     float64 `json:"date-score"`
 	PositionScore float64 `json:"position_score"`
 }
+
+
+type EventDate struct  {
+	Date string `json:"event_date"`
+}
