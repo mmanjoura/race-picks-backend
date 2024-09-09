@@ -186,6 +186,7 @@ func GetMeetingPrediction(c *gin.Context) {
 		}
 
 		if data.SelectionID != 0 {
+			data.NumberOfRunners = selection.NumberOfRunners 
 
 			analysisData = append(analysisData, data)
 		}
@@ -195,9 +196,14 @@ func GetMeetingPrediction(c *gin.Context) {
 	var sortedResults []models.SelectionResult
 
 	result := models.SelectionResult{}
+	var leastRuns int
 	selectionsIds := []int{}
-
-	leastRuns := selectionCount[0].NumberOfRuns
+	if  len(selectionCount) > 0 {
+		leastRuns = selectionCount[0].NumberOfRuns
+	} else {
+		leastRuns = 1
+	}
+	
 	for _, data := range analysisData {
 		if data.NumRuns < leastRuns {
 			leastRuns = data.NumRuns
@@ -210,8 +216,6 @@ func GetMeetingPrediction(c *gin.Context) {
 
 	for id, selecion := range newSelections {
 
-
-	
 		if selecion.ID == analysisData[id].SelectionID {
 			foatDistance := common.ParseDistance(selecion.RaceDistance)
 			analysisData[id].CurrentDistance = foatDistance
@@ -228,7 +232,9 @@ func GetMeetingPrediction(c *gin.Context) {
 			result.AvgRating = math.Round(analysisData[id].AvgRating)
 			result.TotalScore = totalScore
 			result.Age = analysisData[id].Age
-			result.RunCount = analysisData[id].NumRuns
+			result.SelectionID = selecion.ID
+			result.EventDate = raceParams.EventDate
+			result.RunCount = analysisData[id].NumberOfRunners
 			mapResult[selecion.ID] = result
 
 			sortedResults = append(sortedResults, result)
@@ -242,6 +248,29 @@ func GetMeetingPrediction(c *gin.Context) {
 	})
 
 	top3HighestScores := getTop3ScoresByTime(sortedResults)
+
+	err = deletePredictions(db, raceParams.EventDate, raceParams.EventName, raceParams.EventTime)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	for _, result := range top3HighestScores {
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		for _, r := range result {
+			err = insertPredictions(db, r)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+		}
+
+	}
 
 	c.JSON(http.StatusOK, gin.H{"simulationResults": top3HighestScores})
 }
@@ -480,12 +509,10 @@ func stringInSlice(target string, slice []string) bool {
 func ScoreSelection(selection models.AnalysisData, params models.RaceParameters, limit int) float64 {
 	var score float64
 
-
 	// Scoring based on number of runs
 	if selection.NumRuns < 20 {
 		score += 2
 	}
-
 
 	// Distance Analysis
 	distances := strings.Split(selection.AllDistances, ",")
@@ -513,7 +540,7 @@ func ScoreSelection(selection models.AnalysisData, params models.RaceParameters,
 
 		score += calculateDistanceScore(distanceDiff, []float64{0.5, 1.0, 1.5}, []float64{30, 15, 10, 8, 5})
 	default:
-	
+
 		score += calculateDistanceScore(distanceDiff, []float64{1.5, 2.0, 3.5}, []float64{30, 15, 10, 8, 5})
 	}
 

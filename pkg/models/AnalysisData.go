@@ -45,6 +45,7 @@ type AnalysisData struct {
 	Parameters          OptimalParameters `json:"weight_parameters"`
 	WinLose             WinLose           `json:"win_lose"`
 	TotalScore          float64           `json:"total_score"`
+	NumberOfRunners     string               `json:"number_of_runners"`
 	CurrentDistance     float64           `json:"current_distance"`
 	CreateAt            time.Time         `json:"created_at"`
 	UpdatedAt           time.Time         `json:"updated_at"`
@@ -157,5 +158,5 @@ type SelectionResult struct {
 	AvgRating     float64 `json:"avg_rating"`
 	TotalScore    float64 `json:"total_score"`
 	Age           string  `json:"age"`
-	RunCount      int     `json:"run_count"`
+	RunCount      string     `json:"run_count"`
 }

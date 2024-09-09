@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func MeetingWinners(c *gin.Context) {
+func GetPredictions(c *gin.Context) {
 	db := database.Database.DB
 
 	var racePrdictions []models.SelectionResult

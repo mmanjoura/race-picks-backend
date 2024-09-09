@@ -51,6 +51,9 @@ func GetMeetingPrediction_(c *gin.Context) {
 	eventDate := raceParams.EventDate
 	raceType := raceParams.RaceType
 
+
+
+
 	// Get the selection with the least number of runs
 	selectionCount, err := getSelectionWithLeastRuns(db, eventName, eventTime, eventDate)
 	if err != nil {
@@ -427,7 +430,7 @@ func getSelectionWithLeastRuns(db *sql.DB, eventName, eventTime, eventDate strin
 					FROM 
 						SelectionsForm 
 						INNER JOIN EventRunners ON SelectionsForm.selection_id = EventRunners.selection_id
-						WHERE EventRunners.event_name = ? and EventRunners.event_time = ? and DATE(EventRunners.event_date) = ?
+						WHERE SelectionsForm.racecourse = ? and EventRunners.event_time = ? and DATE(EventRunners.event_date) = ?
 					GROUP BY 
 						SelectionsForm.selection_id
 						Order by number_of_runs`, eventName, eventTime, eventDate)

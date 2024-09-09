@@ -47,7 +47,7 @@ func InitRouter() *gin.Engine {
 		v1.GET("/preparation/GetTodayMeeting", preparation.GetTodayMeeting)
 		v1.GET("/preparation/GetMeetingRunners", preparation.GetMeetingRunners)
 		v1.GET("/preparation/GetEventNames", preparation.GetEventNames)
-		v1.GET("/preparation/GetWinners", preparation.MeetingWinners)
+		v1.GET("/preparation/GetPredictions", preparation.GetPredictions)
 
 		// v1.POST("/analysis/RaceAnalysis", analysis.GetRaceAnalysis)
 		v1.POST("/analysis/MeetingPrediction", analysis.GetMeetingPrediction)
