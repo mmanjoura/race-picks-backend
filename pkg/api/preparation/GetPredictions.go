@@ -18,8 +18,6 @@ func GetPredictions(c *gin.Context) {
 
 	var racePrdictions []models.SelectionResult
 
-
-
 	// Query for today's runners
 	date := c.Query("event_date")
 
@@ -32,7 +30,8 @@ func GetPredictions(c *gin.Context) {
 			event_date,
 			event_time,
 			selection_name,
-			odds
+			odds, 
+			num_runners
 		From EventPredictions where DATE(event_date) = ?;`, date)
 
 	if err != nil {
@@ -42,7 +41,7 @@ func GetPredictions(c *gin.Context) {
 
 	defer rows.Close()
 
-	var eventName, totalScore, avgPosition, avgRating, eventDate, eventTime, selectionName, odds sql.NullString
+	var eventName, totalScore, avgPosition, avgRating, eventDate, eventTime, selectionName, odds, numRunners sql.NullString
 
 	for rows.Next() {
 		racePrdiction := models.SelectionResult{}
@@ -56,6 +55,7 @@ func GetPredictions(c *gin.Context) {
 			&eventTime,
 			&selectionName,
 			&odds,
+			&numRunners,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -85,33 +85,34 @@ func GetPredictions(c *gin.Context) {
 		racePrdiction.EventTime = nullableToString(eventTime)
 		racePrdiction.SelectionName = nullableToString(selectionName)
 		racePrdiction.Odds = nullableToString(odds)
+		racePrdiction.RunCount = nullableToString(numRunners)
 
 		racePrdictions = append(racePrdictions, racePrdiction)
 	}
 
-	var todayBets []models.SelectionResult
-	var selectionTime string
-	for i := 0; i < len(racePrdictions); i++ {
+	// var todayBets []models.SelectionResult
+	// var selectionTime string
+	// for i := 0; i < len(racePrdictions); i++ {
 
-		odds, err := calculateOdds(racePrdictions[i].Odds)
-		if err != nil {
-			if err.Error() == "Invalid input" {
-				continue
-			}
-		}
+	// 	odds, err := calculateOdds(racePrdictions[i].Odds)
+	// 	if err != nil {
+	// 		if err.Error() == "Invalid input" {
+	// 			continue
+	// 		}
+	// 	}
 
-		// we only want to bet on selections with odds between 10 and 20
-		if odds < 20 && odds > 10 {
-			if racePrdictions[i].EventTime == selectionTime {
-				continue
-			}
-			todayBets = append(todayBets, racePrdictions[i])
-			selectionTime = racePrdictions[i].EventTime
-		}
-	}
+	// 	// we only want to bet on selections with odds between 10 and 20
+	// 	if odds < 20 && odds > 10 {
+	// 		if racePrdictions[i].EventTime == selectionTime {
+	// 			continue
+	// 		}
+	// 		todayBets = append(todayBets, racePrdictions[i])
+	// 		selectionTime = racePrdictions[i].EventTime
+	// 	}
+	// }
 
 	// Return the meeting data
-	c.JSON(http.StatusOK, gin.H{"predictions": todayBets})
+	c.JSON(http.StatusOK, gin.H{"predictions": racePrdictions})
 }
 
 func calculateOdds(input string) (float64, error) {

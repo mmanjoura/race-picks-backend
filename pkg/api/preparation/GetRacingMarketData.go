@@ -160,6 +160,19 @@ func getEventConditons(eventLink string) models.RaceConditon {
 			parts[i] = strings.TrimSpace(parts[i])
 		}
 
+		var WeighedIn bool
+
+		for i := range parts {
+			if strings.Contains(parts[i], "Weighed In") {
+				WeighedIn = true
+			}
+		}
+
+		// remove the last element if it contains "Weighed In"
+		if WeighedIn {
+			parts = parts[:len(parts)-1]
+		}
+
 		if len(parts) == 6 {
 
 			raceCategory = parts[0]
