@@ -14,6 +14,7 @@ type AnalysisData struct {
 	ID                  int               `json:"id"`
 	SelectionID         int               `json:"selection_id"`
 	SelectionName       string            `json:"selection_name"`
+	SelecionLink        string            `json:"selection_link"`
 	EventName           string            `json:"event_name"`
 	EventDate           string            `json:"event_date"`
 	EventTime           string            `json:"event_time"`
@@ -79,6 +80,7 @@ type RaceParameters struct {
 	Positions    string `json:"positions"`
 	Years        string `json:"years"`
 	Ages         string `json:"ages"`
+	BetAmount    string `json:"bet_amount"`
 }
 
 type CurrentHorseData struct {
@@ -145,18 +147,22 @@ type SelectionForm struct {
 }
 
 type SelectionResult struct {
-	SelectionID   int     `json:"selection_id"`
-	EventName     string  `json:"event_name"`
-	EventDate     string  `json:"event_date"`
-	EventTime     string  `json:"event_time"`
-	SelectionName string  `json:"selection_name"`
-	EventClass    string  `json:"event_class"`
-	RaceType      string  `json:"race_type"`
-	Odds          string  `json:"odds"`
-	Trainer       string  `json:"trainer"`
-	AvgPosition   float64 `json:"avg_position"`
-	AvgRating     float64 `json:"avg_rating"`
-	TotalScore    float64 `json:"total_score"`
-	Age           string  `json:"age"`
-	RunCount      string  `json:"run_count"`
+	SelectionID       int     `json:"selection_id"`
+	EventName         string  `json:"event_name"`
+	EventDate         string  `json:"event_date"`
+	EventTime         string  `json:"event_time"`
+	SelectionName     string  `json:"selection_name"`
+	SelectionLink     string  `json:"selection_link"`
+	EventClass        string  `json:"event_class"`
+	RaceType          string  `json:"race_type"`
+	Odds              string  `json:"odds"`
+	Trainer           string  `json:"trainer"`
+	AvgPosition       float64 `json:"avg_position"`
+	AvgRating         float64 `json:"avg_rating"`
+	TotalScore        float64 `json:"total_score"`
+	Age               string  `json:"age"`
+	RunCount          string  `json:"run_count"`
+	BetType           string  // New field to store BetType
+	SelectionPosition string  // New field to store Selection Position
+	PotentialReturn   float64 // New field to store Potential Return
 }

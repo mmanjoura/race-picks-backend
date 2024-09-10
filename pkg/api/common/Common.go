@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-
 type Selection struct {
 	ID              int    `json:"id"`
 	Name            string `json:"name"`
@@ -19,6 +18,7 @@ type Selection struct {
 	NumberOfRunners string `json:"number_of_runners"`
 	RaceTrack       string `json:"race_track"`
 	RaceClass       string `json:"race_class"`
+	Link            string `json:"link"`
 }
 
 // Helper function to parse race distance considering miles, furlongs, and yards

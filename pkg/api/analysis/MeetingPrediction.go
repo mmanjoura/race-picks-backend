@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mmanjoura/race-picks-backend/pkg/api/common"
+	"github.com/mmanjoura/race-picks-backend/pkg/api/preparation"
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
 	"github.com/mmanjoura/race-picks-backend/pkg/models"
 )
@@ -24,6 +25,12 @@ func GetMeetingPrediction(c *gin.Context) {
 
 	// Bind JSON input to optimalParams
 	if err := c.ShouldBindJSON(&raceParams); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	betAmount, err := strconv.ParseFloat(raceParams.BetAmount, 64)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -41,7 +48,8 @@ func GetMeetingPrediction(c *gin.Context) {
 			track_condition,
 			number_of_runners,
 			race_track,
-			race_class
+			race_class,
+			selection_link
 		FROM EventRunners
 		WHERE DATE(event_date) = ?  AND event_name = ? AND event_time = ?`,
 		raceParams.EventDate, raceParams.EventName, raceParams.EventTime)
@@ -73,6 +81,7 @@ func GetMeetingPrediction(c *gin.Context) {
 			&numberOfRunners,
 			&raceTrack,
 			&raceClass,
+			&selection.Link,
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -186,8 +195,8 @@ func GetMeetingPrediction(c *gin.Context) {
 		}
 
 		if data.SelectionID != 0 {
-			data.NumberOfRunners = selection.NumberOfRunners 
-
+			data.NumberOfRunners = selection.NumberOfRunners
+			data.SelecionLink = selection.Link
 			analysisData = append(analysisData, data)
 		}
 	}
@@ -198,12 +207,12 @@ func GetMeetingPrediction(c *gin.Context) {
 	result := models.SelectionResult{}
 	var leastRuns int
 	selectionsIds := []int{}
-	if  len(selectionCount) > 0 {
+	if len(selectionCount) > 0 {
 		leastRuns = selectionCount[0].NumberOfRuns
 	} else {
 		leastRuns = 1
 	}
-	
+
 	for _, data := range analysisData {
 		if data.NumRuns < leastRuns {
 			leastRuns = data.NumRuns
@@ -215,8 +224,14 @@ func GetMeetingPrediction(c *gin.Context) {
 	newSelections := filterSelectionsByID(selections, selectionsIds)
 
 	for id, selecion := range newSelections {
+		NumberOfrunners, err := extractNumber(analysisData[id].NumberOfRunners)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 
 		if selecion.ID == analysisData[id].SelectionID {
+
 			foatDistance := common.ParseDistance(selecion.RaceDistance)
 			analysisData[id].CurrentDistance = foatDistance
 
@@ -234,8 +249,14 @@ func GetMeetingPrediction(c *gin.Context) {
 			result.Age = analysisData[id].Age
 			result.SelectionID = selecion.ID
 			result.EventDate = raceParams.EventDate
-			result.RunCount = analysisData[id].NumberOfRunners
+			result.RunCount = NumberOfrunners
+			result.SelectionLink = selecion.Link
 			mapResult[selecion.ID] = result
+
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
 
 			sortedResults = append(sortedResults, result)
 		}
@@ -248,28 +269,48 @@ func GetMeetingPrediction(c *gin.Context) {
 	})
 
 	top3HighestScores := getTop3ScoresByTime(sortedResults)
-
-	err = deletePredictions(db, raceParams.EventDate, raceParams.EventName, raceParams.EventTime)
+	rows, err = db.Query("SELECT starting_amount, current_amount, profit_loss FROM User")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	defer rows.Close()
 
-	for _, result := range top3HighestScores {
+	var startingAmount, currentAmount, profitLoss sql.NullFloat64
+	for rows.Next() {
+		err := rows.Scan(&startingAmount, &currentAmount, &profitLoss)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
 
+	resultWithPrices := AddBetTypeAndReturnsToSelections(top3HighestScores, betAmount, raceParams.EventDate) // Assuming a bet amount of 100
+
+	// do not pay attention, this mean only run prediction for entire day instead of single event.
+	if raceParams.Going == "Good" {
+		err = deletePredictions(db, raceParams.EventDate, raceParams.EventName, raceParams.EventTime)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		for _, r := range result {
-			err = insertPredictions(db, r)
+		for _, result := range resultWithPrices {
+
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
-		}
 
+			for _, r := range result {
+				err = insertPredictions(db, r)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+			}
+
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"simulationResults": top3HighestScores})
@@ -810,4 +851,148 @@ func calculatePositionScore(positions []string, limit int) float64 {
 		}
 	}
 	return score
+}
+
+func extractNumber(s string) (string, error) {
+	parts := strings.Fields(s)
+	if len(parts) == 0 {
+		return "", fmt.Errorf("no number found")
+	}
+	number, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return "", err
+	}
+	return strconv.Itoa(number), nil
+}
+
+// DetermineBetType determines the bet type based on the odds
+func DetermineBetType(odds string) string {
+	// Split the odds string by "/"
+	parts := strings.Split(odds, "/")
+	if len(parts) == 2 {
+		numerator, _ := strconv.Atoi(parts[0])
+		denominator, _ := strconv.Atoi(parts[1])
+
+		// Check for BetType based on the odds
+		if float64(numerator)/float64(denominator) < 1.0 {
+			return "win bet"
+		} else if float64(numerator)/float64(denominator) > 4.0 {
+			return "place bet"
+		}
+	}
+	// Default to an empty BetType if criteria are not met
+	return ""
+}
+
+// CalculatePotentialReturn calculates the potential return based on BetType and odds
+func CalculatePotentialReturn(betType string, odds string, amount float64) float64 {
+	// Split the odds string by "/"
+	parts := strings.Split(odds, "/")
+	if len(parts) == 2 {
+		numerator, _ := strconv.ParseFloat(parts[0], 64)
+		denominator, _ := strconv.ParseFloat(parts[1], 64)
+
+		// Calculate potential return for "win bet" or "place bet"
+		if betType == "win bet" {
+			oddsMultiplier := (numerator / denominator)
+			return amount * oddsMultiplier
+		}
+		if betType == "place bet" {
+			oddsMultiplier := (numerator / denominator)
+			return amount * oddsMultiplier
+		}
+
+	}
+	// Default potential return is 0
+	return 0
+}
+
+// AddBetTypeAndReturnsToSelections processes the input map and adds BetType, SelectionPosition, and PotentialReturn fields
+func AddBetTypeAndReturnsToSelections(selectionsMap map[string][]models.SelectionResult, amount float64, date string) map[string][]models.SelectionResult {
+	for eventTime, selections := range selectionsMap {
+		for i := range selections {
+			// Determine the BetType for each selection
+			selections[i].BetType = DetermineBetType(selections[i].Odds)
+			selectionForm, err := preparation.GetWinner(selections[i].SelectionLink, date)
+
+			if err != nil {
+				fmt.Println("Error getting selection form:", err)
+				continue
+			}
+
+			// the position is like this 2/12, we have to deal with this first
+			// check if selectionForm is an array
+			if len(selectionForm) != 0 {
+				if strings.Contains(selectionForm[0].Position, "/") {
+					selectionForm[0].Position = strings.Split(selectionForm[0].Position, "/")[0]
+				}
+				selections[i].SelectionPosition = selectionForm[0].Position
+			}
+
+			// Calculate the PotentialReturn only if SelectionPosition is 1
+			if selections[i].SelectionPosition == "1" {
+				selections[i].PotentialReturn = CalculatePotentialReturn(selections[i].BetType, selections[i].Odds, amount)
+			} else if selections[i].SelectionPosition == "2" {
+				selections[i].PotentialReturn = 0.25 * CalculatePotentialReturn(selections[i].BetType, selections[i].Odds, amount)
+			} else if selections[i].SelectionPosition == "3" {
+				selections[i].PotentialReturn = 0.25 * CalculatePotentialReturn(selections[i].BetType, selections[i].Odds, amount)
+			} else {
+				selections[i].PotentialReturn = 0 // No potential return if position is not 1
+			}
+
+		}
+
+		// Update the selections in the map
+		selectionsMap[eventTime] = selections
+	}
+	return selectionsMap
+}
+
+// Function to get the selection with the least number of runs
+func getSelectionWithLeastRuns(db *sql.DB, eventName, eventTime, eventDate string) ([]Selection, error) {
+	// SQL query to find the selection ID with the least number of runs
+
+	var selections []Selection
+	rows, err := db.Query(`
+					SELECT 
+						SelectionsForm.selection_id,
+						EventRunners.selection_name,
+						EventRunners.event_date,
+						COUNT(*) AS number_of_runs
+					FROM 
+						SelectionsForm 
+						INNER JOIN EventRunners ON SelectionsForm.selection_id = EventRunners.selection_id
+						WHERE SelectionsForm.racecourse = ? and EventRunners.event_time = ? and DATE(EventRunners.event_date) = ?
+					GROUP BY 
+						SelectionsForm.selection_id
+						Order by number_of_runs`, eventName, eventTime, eventDate)
+
+	if err != nil {
+		return []Selection{}, err
+	}
+	defer rows.Close()
+
+	var selection Selection
+
+	// Get the result
+	if rows.Next() {
+		err := rows.Scan(
+			&selection.ID,
+			&selection.Name,
+			&selection.EventDate,
+			&selection.NumberOfRuns,
+		)
+		if err != nil {
+			return []Selection{}, err
+		}
+		selections = append(selections, selection)
+	}
+
+	// Check for any error encountered during iteration
+	if err := rows.Err(); err != nil {
+		return []Selection{}, err
+	}
+
+	// Return the selection ID and number of runs
+	return selections, nil
 }

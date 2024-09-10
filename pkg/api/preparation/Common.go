@@ -12,7 +12,7 @@ import (
 	"github.com/mmanjoura/race-picks-backend/pkg/models"
 )
 
-func SaveSelectionsForm(db *sql.DB, c *gin.Context, selectionID int, selectionLink, selectionName string) error {
+func SaveSelectionsForm(db *sql.DB, c *gin.Context, selectionID int, selectionLink, selectionName string, winnersOnly bool, date string) error {
 
 	rows, err := db.Query(`
 			select selection_id, race_date  from SelectionsForm where selection_id = ? order by race_date desc limit 1`, selectionID)
@@ -30,32 +30,51 @@ func SaveSelectionsForm(db *sql.DB, c *gin.Context, selectionID int, selectionLi
 	}
 	defer rows.Close()
 
-	if selection_id == 0 {
-		// Scrape and clean the data
-		selectionsForm, err := GetAll(selectionLink)
-		if err != nil {
-			return err
-		}
-		err = SaveSelectionForm(db, selectionsForm, c, selectionName, selectionID)
-		if err != nil {
-			return err
+	if !winnersOnly {
+		if selection_id == 0 {
+			// Scrape and clean the data
+			selectionsForm, err := GetAll(selectionLink)
+			if err != nil {
+				return err
+			}
+			err = SaveSelectionForm(db, selectionsForm, c, selectionName, selectionID)
+			if err != nil {
+				return err
+			}
+
+		} else {
+			// Get the last date of the selection form
+			selectionsForm, err := GetLatest(selectionLink, raceDate)
+
+			if err != nil {
+				return err
+			}
+
+			err = SaveSelectionForm(db, selectionsForm, c, selectionName, selectionID)
+
+			if err != nil {
+				return err
+
+			}
 		}
 
 	} else {
 		// Get the last date of the selection form
-		selectionsForm, err := GetLatest(selectionLink, raceDate)
+		selectionsForm, err := GetWinner(selectionLink, date)
 
 		if err != nil {
 			return err
 		}
-
-		err = SaveSelectionForm(db, selectionsForm, c, selectionName, selectionID)
+		
+		err = SaveWinners(db, selectionsForm, c, selectionName, selectionID, date)
 
 		if err != nil {
 			return err
 
 		}
+
 	}
+
 	return nil
 }
 
@@ -105,7 +124,7 @@ func SaveSelectionForm(db *sql.DB, selectionsForm []models.SelectionsForm, c *gi
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			selectionName, selectionID, selectionForm.RaceClass, selectionForm.RaceDate, selectionForm.Position,
 			selectionForm.Rating, selectionForm.RaceType, selectionForm.Racecourse,
-			selectionForm.Distance, selectionForm.Going, 
+			selectionForm.Distance, selectionForm.Going,
 			selectionForm.SPOdds, selectionForm.Age, selectionForm.Trainer,
 			selectionForm.Sex, selectionForm.Sire, selectionForm.Dam, selectionForm.Owner,
 			time.Now(),
@@ -184,7 +203,7 @@ func GetAll(selectionLink string) ([]models.SelectionsForm, error) {
 			Racecourse: racecourse,
 			Distance:   distance,
 			Going:      going,
-			RaceClass:      class,
+			RaceClass:  class,
 			SPOdds:     spOdds,
 			RaceURL:    raceLink,
 			EventDate:  parsedDate,
@@ -280,4 +299,94 @@ func GetLatest(selectionLink string, lasRuntDate time.Time) ([]models.Selections
 	c.Visit("https://www.sportinglife.com" + selectionLink)
 
 	return selectionsForm, nil
+}
+
+func GetWinner(selectionLink string, date string) ([]models.SelectionsForm, error) {
+	c := colly.NewCollector()
+
+	// Slice to store all horse information
+	selectionsForm := []models.SelectionsForm{}
+
+	// Now continue with the rest of your code to scrape other data
+	c.OnHTML("table.FormTable__StyledTable-sc-1xr7jxa-1 tbody tr", func(e *colly.HTMLElement) {
+		raceDate := e.ChildText("td:nth-child(1) a")
+		position := e.ChildText("td:nth-child(2)")
+
+		
+
+		// Create a new SelectionsForm object with the scraped data
+		selectionForm := models.SelectionsForm{
+			Position:  position,
+			CreatedAt: time.Now(),
+		}
+
+
+		// Split the date by "/" and add the current year
+		dateParts := strings.Split(raceDate, "/")
+		raceDate = "20" + dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]
+
+
+
+		if raceDate == date {
+			selectionsForm = append(selectionsForm, selectionForm)
+		}
+
+
+	})
+
+	// Start scraping the URL
+	c.Visit("https://www.sportinglife.com" + selectionLink)
+
+	return selectionsForm, nil
+}
+
+func SaveWinners(db *sql.DB, selectionsForm []models.SelectionsForm, c *gin.Context, selectionName string, selectionID int, dateTime string) error {
+
+	if len(selectionsForm) == 0 {
+		fmt.Println("No selections form data to insert.")
+		return nil
+	}
+
+	// Start a transaction
+	tx, err := db.BeginTx(c, nil)
+	if err != nil {
+		fmt.Println("Failed to begin transaction:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to begin transaction"})
+		return err
+	}
+	fmt.Println("Transaction started")
+
+	for _, selectionForm := range selectionsForm {
+		
+		// Processing and conversions (omitted for brevity)
+		fmt.Println("Inserting record for:", selectionForm)
+
+		res, err := tx.ExecContext(c, `
+										UPDATE EventPredictions
+										SET selection_position = ?, updated_at = ?
+										WHERE DATE(event_date) = ? and selection_id = ?`,
+			selectionForm.Position, time.Now(), dateTime, selectionID)
+
+		if err != nil {
+			fmt.Println("Error executing SQL:", err)
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return err
+		}
+
+		rowsAffected, _ := res.RowsAffected()
+		fmt.Println("Rows affected:", rowsAffected)
+	}
+
+	// Commit the transaction
+	err = tx.Commit()
+	if err != nil {
+		fmt.Println("Transaction commit failed:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return err
+	}
+
+	fmt.Println("Transaction committed successfully")
+
+	return nil
 }

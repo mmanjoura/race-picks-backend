@@ -77,7 +77,7 @@ func GetRacingMarketData(c *gin.Context) {
 
 	for _, todayRunner := range todayRunners {
 
-		err = SaveSelectionsForm(db, c, todayRunner.SelectionID, todayRunner.SelectionLink, todayRunner.SelectionName)
+		err = SaveSelectionsForm(db, c, todayRunner.SelectionID, todayRunner.SelectionLink, todayRunner.SelectionName, false, time.Now().Format("2006-01-02"))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -123,7 +123,7 @@ func getTodayRunners() ([]models.TodayRunners, error) {
 			EventLink:     eventLink,     // Add the event link to the struct
 			EventTime:     eventTime,
 			EventName:     eventName,
-			Price:         price,
+			Price:         removeDuplicateOdds(price),
 			SelectionID:   selectionId,
 		}
 
@@ -191,6 +191,8 @@ func extractRaceInfo(content string) models.RaceConditon {
 	runnersPattern := regexp.MustCompile(`\d+ Runners`)
 	trackPattern := regexp.MustCompile(`Turf|Allweather|All-Weather|Synthetic`) // Include different spellings/formats
 
+	
+
 	for _, part := range parts {
 		switch {
 		case classPattern.MatchString(part):
@@ -220,4 +222,19 @@ func extractRaceInfo(content string) models.RaceConditon {
 	}
 
 	return raceConditions
+}
+
+// Function to remove duplicate odds patterns
+func removeDuplicateOdds(odds string) string {
+	// Count the number of '/' characters in the string
+	count := strings.Count(odds, "/")
+
+	// If there are exactly two '/' characters, return the first half of the string
+	if count == 2 {
+		mid := len(odds) / 2
+		return odds[:mid]
+	}
+
+	// If there is not exactly two '/', return the original string
+	return odds
 }

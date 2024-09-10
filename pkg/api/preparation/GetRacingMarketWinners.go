@@ -1,7 +1,6 @@
 package preparation
 
 import (
-	"database/sql"
 	"net/http"
 	"time"
 
@@ -16,33 +15,34 @@ func GetRacingMarketWinners(c *gin.Context) {
 
 	var raceDate models.EventDate
 
+	// get today date in the format "yyyy-mm-dd"
+	var date = time.Now().Format("2006-01-02")
+
+
+
 	// Bind JSON input to optimalParams
 	if err := c.ShouldBindJSON(&raceDate); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	currentTime := time.Now()
-	// Subtract one day to get the day before
-	dayBefore := currentTime.AddDate(0, 0, -1)
-	// Format the date as YYYY-MM-DD
-	formattedDate := dayBefore.Format("2006-01-02")
+	if raceDate.Date == date {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "we can only get passed winners"})
+		return
+	}
 
-	var rows *sql.Rows
-	var err error
-
-	if raceDate.Date == currentTime.Format("2006-01-02") {
-		rows, err = db.Query(`select selection_id, selection_link, selection_name from EventRunners WHERE  DATE(event_date) = ?`, formattedDate)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	} else {
-		rows, err = db.Query(`select selection_id, selection_link, selection_name from EventRunners WHERE  DATE(event_date) = ?`, raceDate.Date)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
+	rows, err := db.Query(`
+							select 
+								er.selection_id, 
+								er.selection_link, 
+								er.selection_name 
+							from eventPredictions ep 
+								INNER JOIN EventRunners er 
+									on ep.selection_id = er.selection_id 
+								where DATE(ep.event_date) = ?`, raceDate.Date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
 	selections := []models.Selection{}
@@ -58,7 +58,7 @@ func GetRacingMarketWinners(c *gin.Context) {
 	defer rows.Close()
 
 	for _, selection := range selections {
-		err = SaveSelectionsForm(db, c, selection.ID, selection.Link, selection.Name)
+		err = SaveSelectionsForm(db, c, selection.ID, selection.Link, selection.Name, true, raceDate.Date)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
