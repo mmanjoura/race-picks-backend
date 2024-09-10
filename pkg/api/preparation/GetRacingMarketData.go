@@ -145,64 +145,14 @@ func getEventConditons(eventLink string) models.RaceConditon {
 	raceConditons := models.RaceConditon{}
 
 	// Define variables to hold extracted values
-	var raceCategory, raceDistance, trackCondition, numberOfRunners, raceClass, raceTrack string
+	// var raceCategory, raceDistance, trackCondition, numberOfRunners, raceClass, raceTrack string
 
 	// Set the HTML selector and processing logic
 	c.OnHTML("li.RacingRacecardSummary__StyledAdditionalInfo-sc-1intsbr-2", func(e *colly.HTMLElement) {
 		// Extract the text from the HTML element
 		content := e.Text
 
-		// Split the content by '|'
-		parts := strings.Split(content, "|")
-
-		// Trim whitespace from each part
-		for i := range parts {
-			parts[i] = strings.TrimSpace(parts[i])
-		}
-
-		var WeighedIn bool
-
-		for i := range parts {
-			if strings.Contains(parts[i], "Weighed In") {
-				WeighedIn = true
-			}
-		}
-
-		// remove the last element if it contains "Weighed In"
-		if WeighedIn {
-			parts = parts[:len(parts)-1]
-		}
-
-		if len(parts) == 6 {
-
-			raceCategory = parts[0]
-			raceClass = parts[1]
-			raceDistance = parts[2]
-			trackCondition = parts[3]
-			numberOfRunners = parts[4]
-			raceTrack = parts[5]
-
-		}
-		if len(parts) == 5 {
-			raceCategory = parts[0]
-			raceDistance = parts[1]
-			trackCondition = parts[2]
-			numberOfRunners = parts[3]
-			raceTrack = parts[4]
-			
-		}
-
-
-
-		raceConditons = models.RaceConditon{
-
-			RaceCategory:    raceCategory,
-			RaceClass:       raceClass,
-			RaceDistance:    raceDistance,
-			TrackCondition:  trackCondition,
-			NumberOfRunners: numberOfRunners,
-			RaceTrack:       raceTrack,
-		}
+		raceConditons = extractRaceInfo(content)
 
 	})
 
@@ -210,4 +160,64 @@ func getEventConditons(eventLink string) models.RaceConditon {
 	c.Visit("https://www.sportinglife.com" + eventLink)
 
 	return raceConditons
+}
+
+
+// Function to dynamically extract race information
+func extractRaceInfo(content string) models.RaceConditon {
+	// Split the content by '|'
+	parts := strings.Split(content, "|")
+
+	// Trim whitespace from each part
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+
+	var (
+		raceCategory    string
+		raceClass       string
+		raceDistance    string
+		trackCondition  string
+		numberOfRunners string
+		raceTrack       string
+
+	)
+
+
+	// Patterns to recognize specific parts
+	classPattern := regexp.MustCompile(`Class \d+`)
+	distancePattern := regexp.MustCompile(`\d+m \d+f \d+y|\d+f \d+y|\d+m|\d+f|\d+y`) // Extended pattern for various distance formats
+	conditionPattern := regexp.MustCompile(`Soft|Good|Firm|Heavy|Standard|Standard / Slow|Good to Soft \(Good in places\)`) // Add all possible track conditions
+	runnersPattern := regexp.MustCompile(`\d+ Runners`)
+	trackPattern := regexp.MustCompile(`Turf|Allweather|All-Weather|Synthetic`) // Include different spellings/formats
+
+	for _, part := range parts {
+		switch {
+		case classPattern.MatchString(part):
+			raceClass = part
+		case distancePattern.MatchString(part):
+			raceDistance = part
+		case conditionPattern.MatchString(part):
+			trackCondition = part
+		case runnersPattern.MatchString(part):
+			numberOfRunners = part
+		case trackPattern.MatchString(part):
+			raceTrack = part
+		default:
+			// If none of the patterns matched, assume it's the race category
+			raceCategory = part
+		}
+	}
+
+	// Create the RaceCondition object
+	raceConditions := models.RaceConditon{
+		RaceCategory:    raceCategory,
+		RaceClass:       raceClass,
+		RaceDistance:    raceDistance,
+		TrackCondition:  trackCondition,
+		NumberOfRunners: numberOfRunners,
+		RaceTrack:       raceTrack,
+	}
+
+	return raceConditions
 }
