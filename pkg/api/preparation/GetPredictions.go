@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -17,6 +18,7 @@ func GetPredictions(c *gin.Context) {
 	db := database.Database.DB
 
 	var racePrdictions []models.SelectionResult
+	var racePrdictionResult models.SelectionResultResponse
 
 	// Query for today's runners
 	date := c.Query("event_date")
@@ -120,10 +122,89 @@ func GetPredictions(c *gin.Context) {
 		racePrdictions = append(racePrdictions, racePrdiction)
 	}
 
+	racePrdictionResult.SelectionsResult = racePrdictions
+
+	rows, err = db.Query("SELECT starting_amount, current_amount, profit_loss FROM User")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var startingAmount, currentAmount, profitLoss sql.NullFloat64
+	for rows.Next() {
+		err := rows.Scan(&startingAmount, &currentAmount, &profitLoss)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	rows, err = db.Query(`SELECT id,
+       selection_id,
+       selection_name,
+       odds,
+       clean_bet_score,
+       average_position,
+       average_rating,
+       event_name,
+       event_date,
+       event_time,
+       selection_position,
+       num_runners,
+       bet_type,
+       potential_return,
+       created_at,
+       updated_at
+
+  FROM EventPredictions WHERE DATE(event_date) = DATE(?);`, date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var predictions []models.EventPrediction
+	for rows.Next() {
+		racePrdiction := models.EventPrediction{}
+		err := rows.Scan(
+			&racePrdiction.ID,
+			&racePrdiction.SelectionID,
+			&racePrdiction.SelectionName,
+			&racePrdiction.Odds,
+			&racePrdiction.CleanBetScore,
+			&racePrdiction.AveragePosition,
+			&racePrdiction.AverageRating,
+			&racePrdiction.EventName,
+			&racePrdiction.EventDate,
+			&racePrdiction.EventTime,
+			&racePrdiction.SelectionPosition,
+			&racePrdiction.NumRunners,
+			&racePrdiction.BetType,
+			&racePrdiction.PotentialReturn,
+			&racePrdiction.CreatedAt,
+			&racePrdiction.UpdatedAt,
+		)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 
 
-	// Return the meeting data
-	c.JSON(http.StatusOK, gin.H{"predictions": racePrdictions})
+		racePrdiction.CurrentPotAmount = nullableToFloat(currentAmount)
+		racePrdiction.OriginalPotAmount = nullableToFloat(startingAmount)
+		predictions = append(predictions, racePrdiction)
+
+	}
+
+	// Sort the predictions slice by CleanBetScore in descending order
+	sort.Slice(predictions, func(i, j int) bool {
+		return predictions[i].CleanBetScore > predictions[j].CleanBetScore
+	})
+	// racePrdictionResult.EventPredictions = predictions
+
+	c.JSON(http.StatusOK, gin.H{"predictions": predictions})
 }
 
 func calculateOdds(input string) (float64, error) {
@@ -191,8 +272,6 @@ func CalculatePotentialReturn(betType string, odds string, amount float64) float
 	// Default potential return is 0
 	return 0
 }
-
-
 
 // Convert sql.NullFloat64 to a float64
 func nullableToFloat(nf sql.NullFloat64) float64 {

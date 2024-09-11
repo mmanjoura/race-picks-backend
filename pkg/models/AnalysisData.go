@@ -15,6 +15,7 @@ type AnalysisData struct {
 	SelectionID         int               `json:"selection_id"`
 	SelectionName       string            `json:"selection_name"`
 	SelecionLink        string            `json:"selection_link"`
+	EventLink		   string            `json:"event_link"`
 	EventName           string            `json:"event_name"`
 	EventDate           string            `json:"event_date"`
 	EventTime           string            `json:"event_time"`
@@ -165,4 +166,39 @@ type SelectionResult struct {
 	BetType           string  // New field to store BetType
 	SelectionPosition string  // New field to store Selection Position
 	PotentialReturn   float64 // New field to store Potential Return
+
+}
+
+type SelectionResultResponse struct {
+	SelectionsResult []SelectionResult `json:"selections_result"`
+	EventPredictions  []EventPrediction `json:"profit_and_loss"`
+}
+
+type ProfitAndLoss struct {
+	StartingPot   float64 `json:"starting_pot"`
+	ProfictLoss   float64 `json:"profit_loss"`
+	CleanBetScore float64 `json:"clean_bet_score"`
+}
+
+// EventPrediction represents a row from the EventPredictions table.
+type EventPrediction struct {
+	ID                int       `json:"id"`
+	SelectionID       int       `json:"selection_id"`
+	SelectionName     string    `json:"selection_name"`
+	Odds              string    `json:"odds"`
+	CleanBetScore     float64   `json:"clean_bet_score"`
+	AveragePosition   int       `json:"average_position"`
+	AverageRating     float64   `json:"average_rating"`
+	EventName         string    `json:"event_name"`
+	EventDate         time.Time `json:"event_date"`
+	EventTime         string    `json:"event_time"`
+	SelectionPosition string    `json:"selection_position"`
+	NumRunners        string    `json:"num_runners"`
+	BetType           string    `json:"bet_type"`
+	PotentialReturn   float64   `json:"potential_return"`
+	OriginalPotAmount float64   `json:"original_pot_amount"`
+	CurrentPotAmount  float64   `json:"current_pot_amount"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+
 }

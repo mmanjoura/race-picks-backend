@@ -16,7 +16,6 @@ import (
 func GetRacingMarketData(c *gin.Context) {
 	db := database.Database.DB
 
-
 	var raceDate models.EventDate
 
 	// Bind JSON input to optimalParams
@@ -24,7 +23,6 @@ func GetRacingMarketData(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 
 	todayRunners, err := getTodayRunners()
 	if err != nil {
@@ -162,8 +160,6 @@ func getEventConditons(eventLink string) models.RaceConditon {
 	return raceConditons
 }
 
-
-// Function to dynamically extract race information
 func extractRaceInfo(content string) models.RaceConditon {
 	// Split the content by '|'
 	parts := strings.Split(content, "|")
@@ -174,51 +170,32 @@ func extractRaceInfo(content string) models.RaceConditon {
 	}
 
 	var (
-		raceCategory    string
-		raceClass       string
 		raceDistance    string
-		trackCondition  string
 		numberOfRunners string
-		raceTrack       string
-
 	)
 
-
 	// Patterns to recognize specific parts
-	classPattern := regexp.MustCompile(`Class \d+`)
 	distancePattern := regexp.MustCompile(`\d+m \d+f \d+y|\d+f \d+y|\d+m|\d+f|\d+y`) // Extended pattern for various distance formats
-	conditionPattern := regexp.MustCompile(`Soft|Good|Firm|Heavy|Standard|Standard / Slow|Good to Soft \(Good in places\)`) // Add all possible track conditions
 	runnersPattern := regexp.MustCompile(`\d+ Runners`)
-	trackPattern := regexp.MustCompile(`Turf|Allweather|All-Weather|Synthetic`) // Include different spellings/formats
 
-	
+	// Assign defaults
+	raceDistance = "Unknown"
+	numberOfRunners = "Unknown"
 
+	// Assign values based on regex patterns
 	for _, part := range parts {
 		switch {
-		case classPattern.MatchString(part):
-			raceClass = part
 		case distancePattern.MatchString(part):
 			raceDistance = part
-		case conditionPattern.MatchString(part):
-			trackCondition = part
 		case runnersPattern.MatchString(part):
 			numberOfRunners = part
-		case trackPattern.MatchString(part):
-			raceTrack = part
-		default:
-			// If none of the patterns matched, assume it's the race category
-			raceCategory = part
 		}
 	}
 
 	// Create the RaceCondition object
 	raceConditions := models.RaceConditon{
-		RaceCategory:    raceCategory,
-		RaceClass:       raceClass,
 		RaceDistance:    raceDistance,
-		TrackCondition:  trackCondition,
 		NumberOfRunners: numberOfRunners,
-		RaceTrack:       raceTrack,
 	}
 
 	return raceConditions
