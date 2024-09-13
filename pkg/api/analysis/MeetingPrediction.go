@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mmanjoura/race-picks-backend/pkg/api/common"
+	"github.com/mmanjoura/race-picks-backend/pkg/api/preparation"
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
 	"github.com/mmanjoura/race-picks-backend/pkg/models"
 )
@@ -21,18 +22,13 @@ import (
 func GetMeetingPrediction(c *gin.Context) {
 	db := database.Database.DB
 	var raceParams models.RaceParameters
+	lastNumberOfRunsAnalysis := 4
 
 	// Bind JSON input to optimalParams
 	if err := c.ShouldBindJSON(&raceParams); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// betAmount, err := strconv.ParseFloat(raceParams.BetAmount, 64)
-	// if err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	// 	return
-	// }
 
 	// Query for today's runners
 	rows, err := db.Query(`
@@ -50,7 +46,7 @@ func GetMeetingPrediction(c *gin.Context) {
 			race_class,
 			selection_link,
 			event_link
-		FROM EventRunners
+		FROM EventRunners 
 		WHERE DATE(event_date) = ?  AND event_name = ? AND event_time = ?`,
 		raceParams.EventDate, raceParams.EventName, raceParams.EventTime)
 
@@ -65,7 +61,12 @@ func GetMeetingPrediction(c *gin.Context) {
 		var selection common.Selection
 
 		// Use sql.NullString for nullable fields
-		var selectionName, eventName, eventDate, eventTime, raceDistance, raceCategory, trackCondition, numberOfRunners, raceTrack, raceClass, odds, eventLink sql.NullString
+		var selectionName, eventName, eventDate,
+			eventTime, raceDistance, raceCategory,
+			trackCondition,
+			numberOfRunners,
+			raceTrack, raceClass,
+			odds, eventLink sql.NullString
 
 		// Scan the row values into the nullable types
 		if err := rows.Scan(
@@ -100,50 +101,42 @@ func GetMeetingPrediction(c *gin.Context) {
 		selection.RaceTrack = nullableToString(raceTrack)
 		selection.RaceClass = nullableToString(raceClass)
 		selection.EventLink = nullableToString(eventLink)
-
-		// Convert sql.NullFloat64 to float64 or set to a default value
 		selection.Odds = nullableToString(odds)
-
-		// Append the selection to the list
 		selections = append(selections, selection)
 	}
 
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// var selectonsForm []models.SelectionForm
 	var analysisData []models.AnalysisData
 
 	for _, selection := range selections {
 		// Execute the query
 		rows, err = db.Query(`
 			SELECT
-				COALESCE(selection_id, 0),
-				selection_name,	
-				position, 
-				Age,
-				Trainer,
-				Sex,
-				Sire,
-				Dam,
-				Owner,	
-				race_class,				
-				COUNT(*) AS num_runs,
-				MAX(race_date) AS last_run_date,
-				MAX(race_date) - MIN(race_date) AS duration,
-				COUNT(CASE WHEN position = '1' THEN 1 END) AS win_count,
-				AVG(position) AS avg_position,
-				AVG(rating) AS avg_rating,
-				AVG(distance) AS avg_distance_furlongs,
-				AVG(sp_odds) AS sp_odds,
-				GROUP_CONCAT(position, ', ') AS all_positions,
-				GROUP_CONCAT(distance, ', ') AS all_distances,
-				GROUP_CONCAT(racecourse, ', ') AS all_racecources,
-				GROUP_CONCAT(DATE(race_date), ', ') AS all_race_dates 
+				COALESCE(SF.selection_id, 0),
+				SF.selection_name,	
+				SF.position, 
+				SF.Age,
+				SF.Trainer,
+				SF.Sex,
+				SF.Sire,
+				SF.Dam,
+				SF.Owner,	
+				SF.race_class,				
+				COUNT(SF.id) AS num_runs,
+				MAX(SF.race_date) AS last_run_date,
+				MAX(SF.race_date) - MIN(SF.race_date) AS duration,
+				COUNT(CASE WHEN SF.position = '1' THEN 1 END) AS win_count,
+				AVG(SF.position) AS avg_position,
+				AVG(SF.rating) AS avg_rating,
+				AVG(SF.distance) AS avg_distance_furlongs,
+				AVG(SF.sp_odds) AS sp_odds,
+				GROUP_CONCAT(SF.position, ', ') AS all_positions,
+				GROUP_CONCAT(SF.distance, ', ') AS all_distances,
+				GROUP_CONCAT(SF.racecourse, ', ') AS all_racecources,
+				GROUP_CONCAT(DATE(SF.race_date), ', ') AS all_race_dates 
 			FROM
-				SelectionsForm	WHERE selection_id = ?  order by race_date desc`, selection.ID)
+				SelectionsForm SF	INNER JOIN EventRunners ER
+				WHERE SF.selection_id = ? and DATE(SF.race_date) <> ? and ER.event_time = ? order by SF.race_date desc`,
+			selection.ID, raceParams.EventDate, raceParams.EventTime)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -177,6 +170,7 @@ func GetMeetingPrediction(c *gin.Context) {
 				&data.AllCources,
 				&data.AllRaceDates,
 			)
+
 			if err != nil {
 				continue
 			}
@@ -184,7 +178,7 @@ func GetMeetingPrediction(c *gin.Context) {
 		}
 		data.EventLink = selection.EventLink
 
-		currentDistance := convertDistance(selection.RaceDistance)
+		currentDistance := preparation.ConvertDistance(selection.RaceDistance)
 		distance, err := strconv.ParseFloat(currentDistance, 64)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -204,197 +198,64 @@ func GetMeetingPrediction(c *gin.Context) {
 			continue
 		}
 
-		// Add filter here to ignre what you dont want
-
 		if data.SelectionID != 0 {
+
+			stringData := selection.EventDate[:10]
+			data.EventDate = stringData
 			data.NumberOfRunners = selection.NumberOfRunners
-			data.SelecionLink = selection.Link
-
-			ageString := strings.Split(data.Age, " ")[0]
-			age, err := strconv.Atoi(ageString)
-			if err != nil {
-				fmt.Println("Error converting to integer:", err)
-			}
-			// Age limit
-			if age > 8 {
-				continue
-			}
-
-			if strings.Contains(data.EventLink, "handicap") {
-				continue
-			}
-
+			data.SelecionLink = selection.Link	
+			averagePostion := calculateAveragePosition(data.AllPositions, lastNumberOfRunsAnalysis)
+			totalScore := ScoreSelection(data, raceParams, lastNumberOfRunsAnalysis)
+			perferedDistancd := preferredDistance(data.AllPositions, data.AllDistances, data.AllRaceDates)
+			data.AvgPosition = averagePostion
+			data.TotalScore = totalScore
+			data.PreferedDistance = perferedDistancd
+			data.CurrentDistance = distance
+			data.EventTime = raceParams.EventTime
+			data.SelectionName = selection.Name
 			analysisData = append(analysisData, data)
+			
 		}
-
-	}
-
-	mapResult := make(map[int]models.SelectionResult)
-	var sortedResults []models.SelectionResult
-
-	result := models.SelectionResult{}
-	var leastRuns int
-	selectionsIds := []int{}
-
-	for _, data := range analysisData {
-		dates := strings.Split(data.AllRaceDates, ",")
-		leastRuns = len(dates)
-		if leastRuns < len(dates) {
-			leastRuns = len(dates)
-		}
-
-		perferedDistancd := preferredDistance(data.AllPositions, data.AllDistances, data.AllRaceDates)
-		if strings.Contains(perferedDistancd, "f") || strings.Contains(perferedDistancd, "m") {
-			// convert to furlong
-			perferedDistancd = convertDistance(perferedDistancd)
-		}
-
-		foatDistance, err := strconv.ParseFloat(perferedDistancd, 64)
-		if err != nil {
-			continue
-		}
-
-		diff := math.Abs(foatDistance - data.CurrentDistance)
-		if diff > 1 {
-			continue
-		}
-
-		selectionsIds = append(selectionsIds, data.SelectionID)
-	}
-
-	newSelections := filterSelectionsByID(selections, selectionsIds)
-
-	for id, selecion := range newSelections {
-		// if leastRuns < 4 continue
-		if leastRuns < 4 {
-			continue
-		}
-
-		NumRunnder := strings.Split(selecion.NumberOfRunners, " ")[0]
-
-		numerOfRunner, err := strconv.Atoi(NumRunnder)
-
-		if err != nil {
-			continue
-		}
-
-		if numerOfRunner > 10 {
-			continue
-		}
-
-		NumberOfrunners, err := extractNumber(analysisData[id].NumberOfRunners)
-		if err != nil {
-			continue
-		}
-		if selecion.ID == analysisData[id].SelectionID {
-
-			foatDistance := common.ParseDistance(selecion.RaceDistance)
-			analysisData[id].CurrentDistance = foatDistance
-
-			averagePostion := calculateAveragePosition(analysisData[id].AllPositions, leastRuns)
-			if averagePostion < 4 {
-				continue
-			}
-			analysisData[id].AvgPosition = averagePostion
-			totalScore := ScoreSelection(analysisData[id], raceParams, leastRuns)
-			result.EventName = selecion.EventName
-			result.EventTime = selecion.EventTime
-			result.SelectionName = selecion.Name
-			result.Odds = selecion.Odds
-			result.Trainer = analysisData[id].Trainer
-			result.AvgRating = math.Round(analysisData[id].AvgRating)
-			result.TotalScore = totalScore
-			result.Age = analysisData[id].Age
-			result.SelectionID = selecion.ID
-			result.EventDate = raceParams.EventDate
-			result.RunCount = NumberOfrunners
-			result.SelectionLink = selecion.Link
-			result.SelectionPosition = analysisData[id].Position
-
-			mapResult[selecion.ID] = result
-
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			sortedResults = append(sortedResults, result)
-		}
-
 	}
 
 	// Step 2: Sort the slice by TotalScore
-	sort.Slice(sortedResults, func(i, j int) bool {
-		return sortedResults[i].EventName > sortedResults[j].EventName
+	sort.Slice(analysisData, func(i, j int) bool {
+		return analysisData[i].EventName > analysisData[j].EventName
 	})
 
-	// convert sortedResults to map of sting and []SelectionResult
-	mpResult := make(map[string][]models.SelectionResult)
-	for _, result := range sortedResults {
-		// remove any score less than 300
-		if result.TotalScore < 300 {
-			continue
+	mpResult := make(map[string][]models.AnalysisData)
+	for _, analysis := range analysisData {
 
-		}
-
-		if strings.Contains(result.Odds, "/") {
-			result.Odds = strings.Split(result.Odds, "/")[0]
-
-			// convert postion into int
-			// odds, err := strconv.Atoi(result.Odds)
-			if err != nil {
-				continue
-			}
-			// if odds > 5 {
-			// 	continue
-			// }
-
-		}
-
-		mpResult[result.EventTime] = append(mpResult[result.EventTime], result)
-
-		if len(mapResult) == 0 {
-			c.JSON(http.StatusInternalServerError, gin.H{"Not found error": err.Error()})
-			return
-		}
-
+		mpResult[analysis.EventTime] = append(mpResult[analysis.EventTime], analysis)
 	}
 
-	// top3HighestScores := getTop3ScoresByTime(sortedResults)
-	// top2HighestScores := getTop2ScoresByTime(sortedResults)
-	// top1HighestScores := getTopScoreByTime(sortedResults)
-	// if strings.Contains(selections[i].SelectionPosition, "/") {
-	// 	selections[i].SelectionPosition = strings.Split(selections[i].SelectionPosition, "/")[0]
-	// }
 
-	// do not pay attention, this mean only run prediction for entire day instead of single event.
-	if raceParams.Going == "Good" {
-		// resultWithPrices := AddBetTypeAndReturnsToSelections(mpResult, betAmount, raceParams.EventDate) // Assuming a bet amount of 100
-		if len(mpResult) != 0 {
-			err = deletePredictions(db, raceParams.EventDate, raceParams.EventName, raceParams.EventTime)
+	// Iterate through mpResult
+	for _, result := range mpResult {
+
+		for _, r := range result {
+			err = deletePredictions(db, r.EventDate, r.EventName, r.EventTime)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
+		}
+		for _, r := range result {
 
-			for _, result := range mpResult {
-
-				if err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-					return
-				}
-
-				for _, r := range result {
-					err = insertPredictions(db, r)
-					if err != nil {
-						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-						return
-					}
-				}
-
+			err := insertPredictions(db, r)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
 			}
 		}
 	}
+
+
+
+
+	// 	potentilaWinners := findClosestHorse(result)
+	// 	mostLikelyWinners[result[0].EventTime] = potentilaWinners
+
 
 	c.JSON(http.StatusOK, gin.H{"simulationResults": mpResult})
 }
@@ -473,7 +334,7 @@ func ParseHistoricalData(data [][]string) ([]models.HistoricalData, error) {
 		if err != nil {
 			return nil, err
 		}
-		strDisting := convertDistance(row[1])
+		strDisting := preparation.ConvertDistance(row[1])
 		distance, err := strconv.ParseFloat(strDisting, 64)
 		if err != nil {
 			return nil, err
@@ -485,44 +346,6 @@ func ParseHistoricalData(data [][]string) ([]models.HistoricalData, error) {
 		})
 	}
 	return historicalData, nil
-}
-
-func convertDistance(distanceStr string) string {
-	// if this string contain "."
-	if strings.Contains(distanceStr, ".") {
-		alreadyFormated := strings.Split(distanceStr, ".")
-		if len(alreadyFormated[0]) > 0 {
-			return distanceStr
-		}
-	}
-
-	_, err := strconv.ParseFloat(distanceStr, 64)
-	if err == nil {
-		return distanceStr
-	}
-
-	parts := strings.Split(distanceStr, " ")
-	furlongs := 0.0
-	for _, part := range parts {
-		if strings.Contains(part, "m") {
-			miles, err := strconv.ParseFloat(strings.TrimSuffix(part, "m"), 64)
-			if err == nil {
-				furlongs += miles * 8
-			}
-		} else if strings.Contains(part, "f") {
-			f, err := strconv.ParseFloat(strings.TrimSuffix(part, "f"), 64)
-			if err == nil {
-				furlongs += f
-			}
-		} else if strings.Contains(part, "y") {
-			// Assume 220 yards = 1 furlong (approximately)
-			yards, err := strconv.ParseFloat(strings.TrimSuffix(part, "y"), 64)
-			if err == nil {
-				furlongs += yards / 220.0
-			}
-		}
-	}
-	return strconv.FormatFloat(furlongs, 'f', -1, 64)
 }
 
 // Helper function to parse race position
@@ -695,7 +518,7 @@ func ScoreSelection(selection models.AnalysisData, params models.RaceParameters,
 	var totalDistance float64
 	for _, distance := range distances {
 		distance = strings.TrimSpace(distance)
-		convertedDistance := convertDistance(distance)
+		convertedDistance := preparation.ConvertDistance(distance)
 		fd, err := strconv.ParseFloat(convertedDistance, 64)
 		if err != nil {
 			continue
@@ -1167,7 +990,7 @@ func getTop2ScoresByTime(sortedResults []models.SelectionResult) map[string][]mo
 	return top2Scores
 }
 
-func preferredDistance(performances, distances, dates string) string {
+func preferredDistance(performances, distances, dates string) float64 {
 	// Split input strings into slices
 	performanceList := strings.Split(performances, ", ")
 	distanceList := strings.Split(distances, ", ")
@@ -1175,7 +998,7 @@ func preferredDistance(performances, distances, dates string) string {
 
 	// Check if the lengths match
 	if len(performanceList) != len(distanceList) || len(distanceList) != len(dateList) {
-		return "Data length mismatch"
+		return 0.0
 	}
 
 	// Create a map to store total scores and count per distance
@@ -1217,6 +1040,65 @@ func preferredDistance(performances, distances, dates string) string {
 			}
 		}
 	}
+	ret := preparation.ConvertDistance(preferredDistance)
+	// convert to float64
+	preferredDistanceFloat, err := strconv.ParseFloat(ret, 64)
+	if err != nil {
+		return 0.0
+	}
 
-	return preferredDistance
+	return preferredDistanceFloat
+}
+
+func convertDistance(preferredDistance string) {
+	panic("unimplemented")
+}
+
+// findClosestHorse finds the most likely winner based on the given criteria.
+func findClosestHorse(horses []models.AnalysisData) []models.AnalysisData {
+	// Step 1: Filter horses based on distance preference
+	currentDistance := horses[0].CurrentDistance
+	var filteredHorses []models.AnalysisData
+	for _, horse := range horses {
+		distanceDiff := math.Abs(horse.PreferedDistance - currentDistance)
+		if (currentDistance < 12.0 && distanceDiff < 4.0) || (currentDistance >= 12.0 && distanceDiff <= 2.0) {
+			filteredHorses = append(filteredHorses, horse)
+		}
+	}
+
+	// Step 2: If no horse matches the distance preference, return the closest by distance
+	if len(filteredHorses) == 0 {
+		minDistanceDiff := math.Abs(horses[0].PreferedDistance - currentDistance)
+		for _, horse := range horses[1:] {
+			distanceDiff := math.Abs(horse.PreferedDistance - currentDistance)
+			if distanceDiff < minDistanceDiff {
+				minDistanceDiff = distanceDiff
+			}
+		}
+
+		return filteredHorses
+	}
+
+	// Step 3: Sort filtered horses based on Score (highest), AvgPosition (lowest), AvgRating (lowest)
+	sort.Slice(filteredHorses, func(i, j int) bool {
+		if filteredHorses[i].TotalScore != filteredHorses[j].TotalScore {
+			return filteredHorses[i].TotalScore > filteredHorses[j].TotalScore
+		}
+		if filteredHorses[i].AvgPosition != filteredHorses[j].AvgPosition {
+			return filteredHorses[i].AvgPosition < filteredHorses[j].AvgPosition
+		}
+		return filteredHorses[i].AvgRating < filteredHorses[j].AvgRating
+	})
+
+	// Return the best candidate
+	return filteredHorses
+}
+
+func Contains[T comparable](slice []T, element T) bool {
+	for _, v := range slice {
+		if v == element {
+			return true
+		}
+	}
+	return false
 }

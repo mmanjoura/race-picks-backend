@@ -130,12 +130,19 @@ func GetMeetingRunners(c *gin.Context) {
 		if selection.ID == 0 {
 			continue
 		}
+
+		var distance string
+		if raceDistance.Valid {
+			distance = ConvertDistance(raceDistance.String)
+		} else {
+			distance = "" // or any default value you want to assign
+		}
 		// Convert sql.NullString to regular strings
 		selection.Name = nullableToString(selectionName)
 		selection.EventName = nullableToString(eventName)
 		selection.EventDate = nullableToString(eventDate)
 		selection.EventTime = nullableToString(eventTime)
-		selection.RaceDistance = nullableToString(raceDistance)
+		selection.RaceDistance = distance
 		selection.RaceCategory = nullableToString(raceCategory)
 		selection.TrackCondition = nullableToString(trackCondition)
 		selection.NumberOfRunners = nullableToString(numberOfRunners)

@@ -109,7 +109,7 @@ func GetTodayPredictions(c *gin.Context) {
 }
 
 
-func insertPredictions(db *sql.DB, data models.SelectionResult) error {
+func insertPredictions(db *sql.DB, data models.AnalysisData) error {
 
 	// Prepare the INSERT statement
 	stmt, err := db.Prepare(`
@@ -118,9 +118,8 @@ func insertPredictions(db *sql.DB, data models.SelectionResult) error {
 					selection_name, odds, 
 					clean_bet_score, average_position, 
 					average_rating, event_name, 
-					event_time, selection_position, num_runners,
-					bet_type, potential_return)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					event_time, selection_position, num_runners)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -128,12 +127,18 @@ func insertPredictions(db *sql.DB, data models.SelectionResult) error {
 	defer stmt.Close()
 
 	// Execute the INSERT statement
-	_, err = stmt.Exec(data.EventDate, data.SelectionID, 
-						data.SelectionName, data.Odds, 
-						data.TotalScore, data.AvgPosition, 
-						data.AvgRating, data.EventName, 
-						data.EventTime, data.SelectionPosition, data.RunCount,
-					data.BetType, data.PotentialReturn)
+	_, err = stmt.Exec(
+						data.EventDate, 
+						data.SelectionID, 
+						data.SelectionName, 
+						data.AvgOdds, 
+						data.TotalScore, 
+						data.AvgPosition, 
+						data.AvgRating, 
+						data.EventName, 
+						data.EventTime, 
+						data.Position, 
+						data.NumRuns)
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,7 @@ package preparation
 
 import (
 	"net/http"
-	"time"
+
 
 	"github.com/gin-gonic/gin"
 
@@ -15,9 +15,6 @@ func GetRacingMarketWinners(c *gin.Context) {
 
 	var raceDate models.EventDate
 
-	// get today date in the format "yyyy-mm-dd"
-	var date = time.Now().Format("2006-01-02")
-
 
 
 	// Bind JSON input to optimalParams
@@ -26,20 +23,14 @@ func GetRacingMarketWinners(c *gin.Context) {
 		return
 	}
 
-	if raceDate.Date == date {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "we can only get passed winners"})
-		return
-	}
 
 	rows, err := db.Query(`
 							select 
-								er.selection_id, 
-								er.selection_link, 
-								er.selection_name 
-							from eventPredictions ep 
-								INNER JOIN EventRunners er 
-									on ep.selection_id = er.selection_id 
-								where DATE(ep.event_date) = ?`, raceDate.Date)
+								selection_id, 
+								selection_link, 
+								selection_name 
+							from EventRunners 								
+								where DATE(event_date) = ?`, raceDate.Date)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

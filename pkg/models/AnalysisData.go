@@ -11,29 +11,28 @@ type AnalysisDataResponse struct {
 }
 
 type AnalysisData struct {
-	ID                  int               `json:"id"`
-	SelectionID         int               `json:"selection_id"`
-	SelectionName       string            `json:"selection_name"`
-	SelecionLink        string            `json:"selection_link"`
-	EventLink		   string            `json:"event_link"`
-	EventName           string            `json:"event_name"`
-	EventDate           string            `json:"event_date"`
-	EventTime           string            `json:"event_time"`
-	Position            string            `json:"position"`
-	Age                 string            `json:"age"`
-	Trainer             string            `json:"trainer"`
-	Sex                 string            `json:"sex"`
-	Sire                string            `json:"sire"`
-	Dam                 string            `json:"dam"`
-	Owner               string            `json:"owner"`
-	EventClass          string            `json:"event_class"`
-	RecoveryDays        float64           `json:"recovery_days"`
-	NumRuns             int               `json:"num_runs"`
-	LastRunDate         string            `json:"last_run_date"`
-	Duration            int               `json:"duration"`
-	WinCount            int               `json:"win_count"`
-	AvgPosition         float64           `json:"avg_position"`
-	AvgRating           float64           `json:"avg_rating"`
+	ID            int     `json:"id"`
+	SelectionID   int     `json:"selection_id"`
+	SelectionName string  `json:"selection_name"`
+	SelecionLink  string  `json:"selection_link"`
+	EventLink     string  `json:"event_link"`
+	EventName     string  `json:"event_name"`
+	EventDate     string  `json:"event_date"`
+	EventTime     string  `json:"event_time"`
+	Position      string  `json:"position"`
+	Age           string  `json:"age"`
+	Trainer       string  `json:"trainer"`
+	Sex           string  `json:"sex"`
+	Sire          string  `json:"sire"`
+	Dam           string  `json:"dam"`
+	Owner         string  `json:"owner"`
+	EventClass    string  `json:"event_class"`
+	RecoveryDays  float64 `json:"recovery_days"`
+	NumRuns       int     `json:"num_runs"`
+	LastRunDate   string  `json:"last_run_date"`
+	Duration      int     `json:"duration"`
+	WinCount      int     `json:"win_count"`
+
 	AvgDistanceFurlongs float64           `json:"avg_distance_furlongs"`
 	AvgOdds             float64           `json:"avg_odds"`
 	AllRatings          string            `json:"all_ratings"`
@@ -46,11 +45,15 @@ type AnalysisData struct {
 	TrendAnalysis       AnalyzeTrends     `json:"trend_analysis"`
 	Parameters          OptimalParameters `json:"weight_parameters"`
 	WinLose             WinLose           `json:"win_lose"`
-	TotalScore          float64           `json:"total_score"`
-	NumberOfRunners     string            `json:"number_of_runners"`
-	CurrentDistance     float64           `json:"current_distance"`
-	CreateAt            time.Time         `json:"created_at"`
-	UpdatedAt           time.Time         `json:"updated_at"`
+
+	NumberOfRunners string    `json:"number_of_runners"`
+	CurrentDistance float64   `json:"current_distance"`
+	TotalScore      float64   `json:"total_score"`
+	PreferedDistance    float64   `json:"prefered_distance"`
+	AvgPosition     float64   `json:"avg_position"`
+	AvgRating       float64   `json:"avg_rating"`
+	CreateAt        time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // RaceData holds individual race information
@@ -68,13 +71,13 @@ type AnalyzeTrends struct {
 	OptimalDistanceMax float64
 }
 
+
 type RaceParameters struct {
 	ID           int    `json:"id"`
 	RaceType     string `json:"race_type"`
 	RaceDistance string `json:"race_distance"`
 	Handicap     bool   `json:"handicap"`
 	RaceClass    string `json:"race_class"`
-	Going        string `json:"going"`
 	EventName    string `json:"event_name"`
 	EventDate    string `json:"event_date"`
 	EventTime    string `json:"event_time"`
@@ -171,7 +174,7 @@ type SelectionResult struct {
 
 type SelectionResultResponse struct {
 	SelectionsResult []SelectionResult `json:"selections_result"`
-	EventPredictions  []EventPrediction `json:"profit_and_loss"`
+	EventPredictions []EventPrediction `json:"profit_and_loss"`
 }
 
 type ProfitAndLoss struct {
@@ -200,5 +203,4 @@ type EventPrediction struct {
 	CurrentPotAmount  float64   `json:"current_pot_amount"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
-
 }
