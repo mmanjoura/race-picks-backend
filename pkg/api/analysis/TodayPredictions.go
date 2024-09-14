@@ -61,17 +61,19 @@ func insertPredictions(db *sql.DB, data models.AnalysisData) error {
 	// Prepare the INSERT statement
 	stmt, err := db.Prepare(`
 		INSERT INTO EventPredictions (
-					event_date, selection_id, 
+					event_date, race_date, selection_id, 
 					selection_name, odds, age,
 					clean_bet_score, average_position, 
 					average_rating, event_name, 
 					event_time, selection_position, num_runners, number_runs, prefered_distance, current_distance)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
+	raceDate := string(data.RaceDate)[:10]
 
 	ageStr := strings.Split(data.Age, " ")[0]
 	ageInt, _ := strconv.Atoi(ageStr)
@@ -83,6 +85,7 @@ func insertPredictions(db *sql.DB, data models.AnalysisData) error {
 	// Execute the INSERT statement
 	_, err = stmt.Exec(
 		data.EventDate,
+		raceDate,
 		data.SelectionID,
 		data.SelectionName,
 		math.Round(data.AvgOdds*1000)/1000,

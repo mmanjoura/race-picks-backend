@@ -49,7 +49,7 @@ func GetRacingMarketWinners(c *gin.Context) {
 	defer rows.Close()
 
 	for _, selection := range selections {
-		err = SaveSelectionsForm(db, c, selection.ID, selection.Link, selection.Name, true, raceDate.Date)
+		err = SaveSelectionsForm(db, c, selection.ID, selection.Link, selection.Name,  raceDate.Date)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

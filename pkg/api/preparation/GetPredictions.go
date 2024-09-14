@@ -2,10 +2,8 @@ package preparation
 
 import (
 	"database/sql"
-	"errors"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
@@ -17,114 +15,16 @@ import (
 func GetPredictions(c *gin.Context) {
 	db := database.Database.DB
 
-	var racePrdictions []models.SelectionResult
-	var racePrdictionResult models.SelectionResultResponse
-
 	// Query for today's runners
 	date := c.Query("event_date")
+	currentBet := 10.0
+	totalBet := 10.0
+	var eventPredicitonsResponse models.EventPredictionResponse
 
-	rows, err := db.Query(`
-		SELECT selection_id,
-			clean_bet_score,
-			average_position,
-			average_rating,
-			event_name,
-			event_date,
-			event_time,
-			selection_name,
-			odds, 
-			num_runners, 
-			selection_position,
-			bet_type,
-			potential_return
-		From EventPredictions where DATE(event_date) = ?;`, date)
+	var pnl []float64
+	var totalBets []float64
 
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	defer rows.Close()
-
-	var eventName, totalScore, avgPosition, avgRating, eventDate,
-		eventTime, selectionName, odds, numRunners, selectionPosition, betType, potentialReturn sql.NullString
-
-	for rows.Next() {
-		racePrdiction := models.SelectionResult{}
-		err := rows.Scan(
-			&racePrdiction.SelectionID,
-			&totalScore,
-			&avgPosition,
-			&avgRating,
-			&eventName,
-			&eventDate,
-			&eventTime,
-			&selectionName,
-			&odds,
-			&numRunners,
-			&selectionPosition,
-			&betType,
-			&potentialReturn,
-		)
-
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		totalScoreFloat, err := strconv.ParseFloat(nullableToString(totalScore), 64)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		racePrdiction.TotalScore = totalScoreFloat
-		avgPositionFloat, err := strconv.ParseFloat(nullableToString(avgPosition), 64)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		racePrdiction.AvgPosition = avgPositionFloat
-		avgRatingFloat, err := strconv.ParseFloat(nullableToString(avgRating), 64)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		potentialReturnFloat, err := strconv.ParseFloat(nullableToString(potentialReturn), 64)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		selectionPostionInt := nullableToString(selectionPosition)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		var price string
-		if odds.Valid {
-			price = removeDuplicateOdds(odds.String)
-		} else {
-			price = ""
-		}
-		racePrdiction.AvgRating = avgRatingFloat
-		racePrdiction.EventName = nullableToString(eventName)
-		racePrdiction.EventDate = nullableToString(eventDate)
-		racePrdiction.EventTime = nullableToString(eventTime)
-		racePrdiction.SelectionName = nullableToString(selectionName)
-		racePrdiction.Odds = nullableToString(sql.NullString{String: price, Valid: true})
-		racePrdiction.RunCount = nullableToString(numRunners)
-		racePrdiction.SelectionPosition = selectionPostionInt
-		racePrdiction.BetType = nullableToString(betType)
-		racePrdiction.PotentialReturn = potentialReturnFloat
-
-		racePrdictions = append(racePrdictions, racePrdiction)
-	}
-
-	racePrdictionResult.SelectionsResult = racePrdictions
-
-	rows, err = db.Query("SELECT starting_amount, current_amount, profit_loss FROM User")
+	rows, err := db.Query("SELECT starting_amount, current_amount, profit_loss FROM User")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -141,23 +41,28 @@ func GetPredictions(c *gin.Context) {
 	}
 
 	rows, err = db.Query(`SELECT id,
-       selection_id,
-       selection_name,
-       odds,
-       clean_bet_score,
-       average_position,
-       average_rating,
-       event_name,
-       event_date,
-       event_time,
-       selection_position,
-       num_runners,
-       bet_type,
-       potential_return,
-       created_at,
-       updated_at
-
-  FROM EventPredictions WHERE DATE(event_date) = DATE(?);`, date)
+							selection_id,
+							selection_name,
+							odds,
+							age,
+							clean_bet_score,
+							average_position,
+							average_rating,
+							event_name,
+							event_date,
+							race_date,
+							event_time,
+							selection_position,
+							ABS(prefered_distance - current_distance)  as distanceTolerence,
+							num_runners,
+							number_runs,
+							prefered_distance,
+							current_distance,
+							created_at,
+							updated_at
+						FROM EventPredictions
+						WHERE event_date = ? and  distanceTolerence < 1 and average_position < 2 and number_runs < 10 
+						order by clean_bet_score DESC`, date)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -172,111 +77,112 @@ func GetPredictions(c *gin.Context) {
 			&racePrdiction.SelectionID,
 			&racePrdiction.SelectionName,
 			&racePrdiction.Odds,
+			&racePrdiction.Age,
 			&racePrdiction.CleanBetScore,
 			&racePrdiction.AveragePosition,
 			&racePrdiction.AverageRating,
 			&racePrdiction.EventName,
 			&racePrdiction.EventDate,
+			&racePrdiction.RaceDate,
 			&racePrdiction.EventTime,
 			&racePrdiction.SelectionPosition,
+			&racePrdiction.DistanceTolerence,
 			&racePrdiction.NumRunners,
-			&racePrdiction.BetType,
-			&racePrdiction.PotentialReturn,
+			&racePrdiction.NumbeRuns,
+			&racePrdiction.PreferredDistance,
+			&racePrdiction.CurrentDistance,
 			&racePrdiction.CreatedAt,
 			&racePrdiction.UpdatedAt,
+			
 		)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		position, err := getPosition(racePrdiction.SelectionID, date, db)
+
+		if err != nil {
+			continue
+		}
+
+		racePrdiction.Position = position
 
 
-		racePrdiction.CurrentPotAmount = nullableToFloat(currentAmount)
-		racePrdiction.OriginalPotAmount = nullableToFloat(startingAmount)
 		predictions = append(predictions, racePrdiction)
 
 	}
+	
+	// First filter the predictions to remove duplicates based on EventTime
+	filteredPredictions := filterHighestBetScore(predictions)
 
-	// Sort the predictions slice by CleanBetScore in descending order
-	sort.Slice(predictions, func(i, j int) bool {
-		return predictions[i].CleanBetScore > predictions[j].CleanBetScore
+	// After filtering, compute PnL
+	for _, p := range filteredPredictions {		
+		
+		position := strings.Split(p.Position, "/")[0]
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if position == "1"{
+			pnl = append(pnl, currentBet*p.Odds)
+		}
+		totalBets = append(totalBets, totalBet)
+	}
+
+	TotalBet := sumSlice(totalBets)
+	TotalReturn := sumSlice(pnl)
+
+	eventPredicitonsResponse.Selections = filteredPredictions
+	eventPredicitonsResponse.TotalBet = TotalBet
+	eventPredicitonsResponse.TotalReturn = TotalReturn - TotalBet
+
+	// Sort filtered predictions by CleanBetScore if needed (descending order)
+	sort.Slice(filteredPredictions, func(i, j int) bool {
+		return filteredPredictions[i].CleanBetScore > filteredPredictions[j].CleanBetScore
 	})
-	// racePrdictionResult.EventPredictions = predictions
 
-	c.JSON(http.StatusOK, gin.H{"predictions": predictions})
+	c.JSON(http.StatusOK, gin.H{"predictions": eventPredicitonsResponse})
 }
 
-func calculateOdds(input string) (float64, error) {
-
-	// Split the input string by "/"
-	parts := strings.Split(input, "/")
-	if len(parts) != 2 {
-		return 0, errors.New("Invalid input")
+func sumSlice(slice []float64) float64 {
+	var sum float64
+	for _, value := range slice {
+		sum += value
 	}
-
-	// Convert the string parts to float64 numbers
-	numerator, err := strconv.ParseFloat(parts[0], 64)
-	if err != nil {
-		return 0, err
-	}
-
-	denominator, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil {
-		return 0, err
-	}
-
-	// Perform the division
-	if denominator == 0 {
-		return 0, errors.New("Division by zero")
-	}
-
-	result := numerator / denominator
-
-	return result, nil
+	return sum
 }
 
-// DetermineBetType determines the bet type based on the odds
-func DetermineBetType(odds string) string {
-	// Split the odds string by "/"
-	parts := strings.Split(odds, "/")
-	if len(parts) == 2 {
-		numerator, _ := strconv.Atoi(parts[0])
-		denominator, _ := strconv.Atoi(parts[1])
+func filterHighestBetScore(predictions []models.EventPrediction) []models.EventPrediction {
+	// Create a map to store the highest CleanBetScore for each EventTime
+	eventTimeMap := make(map[string]models.EventPrediction)
 
-		// Check for BetType based on the odds
-		if float64(numerator)/float64(denominator) < 1.0 {
-			return "win bet"
-		} else if float64(numerator)/float64(denominator) > 4.0 {
-			return "place bet"
+	// Iterate through predictions and keep only the one with the highest CleanBetScore for each EventTime
+	for _, prediction := range predictions {
+		existing, found := eventTimeMap[prediction.EventTime]
+		if !found || prediction.CleanBetScore > existing.CleanBetScore {
+			eventTimeMap[prediction.EventTime] = prediction
 		}
 	}
-	// Default to an empty BetType if criteria are not met
-	return ""
+
+	// Convert map to a slice of EventPredictions
+	filteredPredictions := make([]models.EventPrediction, 0, len(eventTimeMap))
+	for _, prediction := range eventTimeMap {
+		filteredPredictions = append(filteredPredictions, prediction)
+	}
+
+	return filteredPredictions
 }
 
-// CalculatePotentialReturn calculates the potential return based on BetType and odds
-func CalculatePotentialReturn(betType string, odds string, amount float64) float64 {
-	// Split the odds string by "/"
-	parts := strings.Split(odds, "/")
-	if len(parts) == 2 {
-		numerator, _ := strconv.ParseFloat(parts[0], 64)
-		denominator, _ := strconv.ParseFloat(parts[1], 64)
-
-		// Calculate potential return for "win bet" or "place bet"
-		if betType == "win bet" || betType == "place bet" {
-			oddsMultiplier := (numerator / denominator) + 1
-			return amount * oddsMultiplier
-		}
+// Get Postion given selection Id
+func getPosition(selectionId int, race_date string, db *sql.DB) (string, error) {
+	var position string
+	err := db.QueryRow(`
+				Select position 
+				from selectionsForm 
+				where DATE(race_date) = ? and selection_id = ?;`, race_date, selectionId).Scan(&position)
+	if err != nil {
+		return "", err
 	}
-	// Default potential return is 0
-	return 0
-}
-
-// Convert sql.NullFloat64 to a float64
-func nullableToFloat(nf sql.NullFloat64) float64 {
-	if nf.Valid {
-		return nf.Float64
-	}
-	return 0.0 // Return a default value (e.g., 0.0) if NULL
+	return position, nil
 }

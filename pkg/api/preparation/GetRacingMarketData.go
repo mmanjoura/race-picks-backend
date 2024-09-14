@@ -17,12 +17,57 @@ func GetRacingMarketData(c *gin.Context) {
 	db := database.Database.DB
 
 	var raceDate models.EventDate
+	var TodayRunnersUpdated bool
 
 	// Bind JSON input to optimalParams
 	if err := c.ShouldBindJSON(&raceDate); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	rows, err := db.Query(`
+				select selection_name, selection_link, selection_id 
+				from EventRunners where DATE(event_date) = ? ;`, raceDate.Date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Scan result
+	defer rows.Close()
+
+	for rows.Next() {
+		TodayRunnersUpdated = true
+		var selectionLink string
+		var selectionID int
+		var selectionName string
+
+		err := rows.Scan(&selectionName, &selectionLink, &selectionID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		parsedRaceDate, _ := time.Parse("2006-01-02", raceDate.Date)
+		from, err := GetWinnerForm(selectionLink, parsedRaceDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if from != nil {
+			err = SaveSelectionForm(db, from, c, selectionName, selectionID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+		}
+
+	}
+
+	if TodayRunnersUpdated {
+		c.JSON(http.StatusOK, gin.H{"message": "postion updated successfully"})
+		return
+	} 
 
 	todayRunners, err := getTodayRunners()
 	if err != nil {
@@ -72,7 +117,6 @@ func GetRacingMarketData(c *gin.Context) {
 			return
 		}
 	}
-
 
 	c.JSON(http.StatusOK, gin.H{"message": "Horse information saved successfully"})
 
