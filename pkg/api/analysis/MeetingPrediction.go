@@ -22,7 +22,7 @@ import (
 func GetMeetingPrediction(c *gin.Context) {
 	db := database.Database.DB
 	var raceParams models.RaceParameters
-	lastNumberOfRunsAnalysis := 4
+	LeastNumberOfRunsAnalysis := 4
 
 	// Bind JSON input to optimalParams
 	if err := c.ShouldBindJSON(&raceParams); err != nil {
@@ -47,8 +47,8 @@ func GetMeetingPrediction(c *gin.Context) {
 			selection_link,
 			event_link
 		FROM EventRunners 
-		WHERE DATE(event_date) = ?  AND event_name = ? AND event_time = ?`,
-		raceParams.EventDate, raceParams.EventName, raceParams.EventTime)
+		WHERE DATE(event_date) = ? `,
+		raceParams.EventDate)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -107,36 +107,40 @@ func GetMeetingPrediction(c *gin.Context) {
 
 	var analysisData []models.AnalysisData
 
+
+
 	for _, selection := range selections {
 		// Execute the query
 		rows, err = db.Query(`
 			SELECT
-				COALESCE(SF.selection_id, 0),
-				SF.selection_name,	
-				SF.position, 
-				SF.Age,
-				SF.Trainer,
-				SF.Sex,
-				SF.Sire,
-				SF.Dam,
-				SF.Owner,	
-				SF.race_class,				
-				COUNT(SF.id) AS num_runs,
-				MAX(SF.race_date) AS last_run_date,
-				MAX(SF.race_date) - MIN(SF.race_date) AS duration,
-				COUNT(CASE WHEN SF.position = '1' THEN 1 END) AS win_count,
-				AVG(SF.position) AS avg_position,
-				AVG(SF.rating) AS avg_rating,
-				AVG(SF.distance) AS avg_distance_furlongs,
-				AVG(SF.sp_odds) AS sp_odds,
-				GROUP_CONCAT(SF.position, ', ') AS all_positions,
-				GROUP_CONCAT(SF.distance, ', ') AS all_distances,
-				GROUP_CONCAT(SF.racecourse, ', ') AS all_racecources,
-				GROUP_CONCAT(DATE(SF.race_date), ', ') AS all_race_dates 
+				DISTINCT
+				COALESCE(selection_id, 0),
+				selection_name,	
+				position, 
+				Age,
+				Trainer,
+				Sex,
+				Sire,
+				Dam,
+				Owner,	
+				race_class,	
+				race_date,			
+				COUNT(id) AS num_runs,
+				MAX(race_date) AS last_run_date,
+				MAX(race_date) - MIN(race_date) AS duration,
+				COUNT(CASE WHEN position = '1' THEN 1 END) AS win_count,
+				AVG(position) AS avg_position,
+				AVG(rating) AS avg_rating,
+				AVG(distance) AS avg_distance_furlongs,
+				AVG(sp_odds) AS sp_odds,
+				GROUP_CONCAT(position, ', ') AS all_positions,
+				GROUP_CONCAT(distance, ', ') AS all_distances,
+				GROUP_CONCAT(racecourse, ', ') AS all_racecources,
+				GROUP_CONCAT(DATE(race_date), ', ') AS all_race_dates 
 			FROM
-				SelectionsForm SF	INNER JOIN EventRunners ER
-				WHERE SF.selection_id = ? and DATE(SF.race_date) <> ? and ER.event_time = ? order by SF.race_date desc`,
-			selection.ID, raceParams.EventDate, raceParams.EventTime)
+				SelectionsForm 	
+				WHERE selection_id = ?  order by race_date desc`,
+			selection.ID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -157,6 +161,7 @@ func GetMeetingPrediction(c *gin.Context) {
 				&data.Dam,
 				&data.Owner,
 				&data.EventClass,
+				&data.RaceDate,
 				&data.NumRuns,
 				&data.LastRunDate,
 				&data.Duration,
@@ -203,18 +208,28 @@ func GetMeetingPrediction(c *gin.Context) {
 			stringData := selection.EventDate[:10]
 			data.EventDate = stringData
 			data.NumberOfRunners = selection.NumberOfRunners
-			data.SelecionLink = selection.Link	
-			averagePostion := calculateAveragePosition(data.AllPositions, lastNumberOfRunsAnalysis)
-			totalScore := ScoreSelection(data, raceParams, lastNumberOfRunsAnalysis)
+			data.SelecionLink = selection.Link
+			averagePostion := calculateAveragePosition(data.AllPositions, LeastNumberOfRunsAnalysis)
+			totalScore := ScoreSelection(data, raceParams, LeastNumberOfRunsAnalysis)
 			perferedDistancd := preferredDistance(data.AllPositions, data.AllDistances, data.AllRaceDates)
 			data.AvgPosition = averagePostion
 			data.TotalScore = totalScore
 			data.PreferedDistance = perferedDistancd
 			data.CurrentDistance = distance
-			data.EventTime = raceParams.EventTime
+			data.EventTime = selection.EventTime
 			data.SelectionName = selection.Name
+			data.EventName = selection.EventName
+			data.PreferedDistance = perferedDistancd
+
+			// Convert time.Time to string
+			strDate := string(data.RaceDate)[:10]
+
+			if strDate == raceParams.EventDate {
+				continue
+			}
+		
 			analysisData = append(analysisData, data)
-			
+
 		}
 	}
 
@@ -228,7 +243,6 @@ func GetMeetingPrediction(c *gin.Context) {
 
 		mpResult[analysis.EventTime] = append(mpResult[analysis.EventTime], analysis)
 	}
-
 
 	// Iterate through mpResult
 	for _, result := range mpResult {
@@ -250,12 +264,8 @@ func GetMeetingPrediction(c *gin.Context) {
 		}
 	}
 
-
-
-
 	// 	potentilaWinners := findClosestHorse(result)
 	// 	mostLikelyWinners[result[0].EventTime] = potentilaWinners
-
 
 	c.JSON(http.StatusOK, gin.H{"simulationResults": mpResult})
 }
@@ -457,56 +467,31 @@ func ScoreSelection(selection models.AnalysisData, params models.RaceParameters,
 
 	var score float64
 
-	// We only want to deal with horses that have run at least 3 times
-
 	// 0. gelding Score
 	if selection.Sex == "Gelding" {
-		score += 5
+		score += 2 + float64(selection.Duration)
+	} else {
+		score += float64(selection.Duration)
 	}
 
-	// 1. Number of years in competions
-	if selection.Duration < 4 {
-		score += 5
-	}
-
-	// 2. Age Score
+	// 1. Age Score
 	ageString := strings.Split(selection.Age, " ")[0]
 	age, err := strconv.Atoi(ageString)
 	if err != nil {
 		fmt.Println("Error converting to integer:", err)
 	}
-	if selection.CurrentDistance < 12.0 {
-		if age <= 7.0 {
-			score += 5
-		}
-	} else {
-		if age >= 4.0 && age <= 8.0 {
-			score += 5
-		}
+	if age < 9.0 {
+		score += float64(age)
 	}
 
 	// 3. Number of runs so far
 	if selection.NumRuns < 10 {
-		score += 5
+		score += float64(selection.NumRuns)
 	}
 
 	// 5. Rating
-	if selection.AvgRating > 0 && selection.AvgRating < 10 {
-		score += 2.5
-	}
-	if selection.AvgRating > 10 && selection.AvgRating < 20 {
-		score += 5
-	}
-	if selection.AvgRating > 20 && selection.AvgRating < 40 {
-		score += 7.5
-	}
-	if selection.AvgRating > 40 {
-		score += 10
-	}
-
-	// 6. Odds
-	if selection.AvgOdds < 10 {
-		score += 5
+	if selection.AvgRating > 0 {
+		score += selection.AvgRating / 10.0
 	}
 
 	// Distance Analysis
@@ -531,12 +516,12 @@ func ScoreSelection(selection models.AnalysisData, params models.RaceParameters,
 	// Distance and Age-Based Scoring
 	distanceDiff := math.Abs(avgDistance - selection.CurrentDistance)
 	switch {
-	case avgDistance <= 12:
+	case avgDistance <= 14:
 
-		score += calculateDistanceScore(distanceDiff, []float64{0.5, 1.0, 1.5}, []float64{30, 15, 10, 8, 5})
+		score += calculateDistanceScore(distanceDiff, []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}, []float64{9, 8, 7, 6, 5, 4, 3, 2, 1})
 	default:
 
-		score += calculateDistanceScore(distanceDiff, []float64{1.5, 2.0, 3.5}, []float64{30, 15, 10, 8, 5})
+		score += calculateDistanceScore(distanceDiff, []float64{0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5}, []float64{9, 8, 7, 6, 5, 4, 3, 2, 1})
 	}
 
 	// Position Analysis

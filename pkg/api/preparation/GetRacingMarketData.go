@@ -73,14 +73,6 @@ func GetRacingMarketData(c *gin.Context) {
 		}
 	}
 
-	for _, todayRunner := range todayRunners {
-
-		err = SaveSelectionsForm(db, c, todayRunner.SelectionID, todayRunner.SelectionLink, todayRunner.SelectionName, false, time.Now().Format("2006-01-02"))
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Horse information saved successfully"})
 

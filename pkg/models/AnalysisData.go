@@ -32,6 +32,7 @@ type AnalysisData struct {
 	LastRunDate   string  `json:"last_run_date"`
 	Duration      int     `json:"duration"`
 	WinCount      int     `json:"win_count"`
+	RaceDate      string  `json:"race_date"`
 
 	AvgDistanceFurlongs float64           `json:"avg_distance_furlongs"`
 	AvgOdds             float64           `json:"avg_odds"`
@@ -46,14 +47,14 @@ type AnalysisData struct {
 	Parameters          OptimalParameters `json:"weight_parameters"`
 	WinLose             WinLose           `json:"win_lose"`
 
-	NumberOfRunners string    `json:"number_of_runners"`
-	CurrentDistance float64   `json:"current_distance"`
-	TotalScore      float64   `json:"total_score"`
-	PreferedDistance    float64   `json:"prefered_distance"`
-	AvgPosition     float64   `json:"avg_position"`
-	AvgRating       float64   `json:"avg_rating"`
-	CreateAt        time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	NumberOfRunners  string    `json:"number_of_runners"`
+	CurrentDistance  float64   `json:"current_distance"`
+	TotalScore       float64   `json:"total_score"`
+	PreferedDistance float64   `json:"prefered_distance"`
+	AvgPosition      float64   `json:"avg_position"`
+	AvgRating        float64   `json:"avg_rating"`
+	CreateAt         time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // RaceData holds individual race information
@@ -70,7 +71,6 @@ type AnalyzeTrends struct {
 	OptimalDistanceMin float64
 	OptimalDistanceMax float64
 }
-
 
 type RaceParameters struct {
 	ID           int    `json:"id"`

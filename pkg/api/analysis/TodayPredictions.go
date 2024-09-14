@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 
 	"net/http"
 
@@ -12,14 +13,12 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-
-	"github.com/mmanjoura/race-picks-backend/pkg/database"
 	"github.com/mmanjoura/race-picks-backend/pkg/models"
 )
 
 // RacePicksSimulation handles the simulation of race picks and calculates win probabilities.
 func GetTodayPredictions(c *gin.Context) {
-	db := database.Database.DB
+
 	var raceParams models.RaceParameters
 
 	// Bind JSON input to optimalParams
@@ -28,86 +27,34 @@ func GetTodayPredictions(c *gin.Context) {
 		return
 	}
 
-	// Get all meeting of today
-	var eventNames []string
-	rows, err := db.Query(`SELECT DISTINCT event_name FROM EventRunners WHERE DATE(event_date) = ? `, raceParams.EventDate)
+	// Convert the struct to JSON
+	jsonData, err := json.Marshal(raceParams)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var eventName string
-		err := rows.Scan(&eventName)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		eventNames = append(eventNames, eventName)
+
+	// Create a new POST request with the JSON body
+	req, err := http.NewRequest("POST", "http://localhost:8080/api/v1/analysis/MeetingPrediction", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return
 	}
 
-	// Get Event Times for the given event names
+	// Set the appropriate headers
+	req.Header.Set("Content-Type", "application/json")
 
-	// Create map of event names to event times
-	var eventTimesMap = make(map[string][]string)
-	for _, eventName := range eventNames {
-		var eventTimes []string
-		rows, err = db.Query(`SELECT DISTINCT event_time FROM EventRunners WHERE event_name = ? AND DATE(event_date) = ?`, eventName, raceParams.EventDate)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var eventTime string
-			err := rows.Scan(&eventTime)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			eventTimes = append(eventTimes, eventTime)
-		}
-		eventTimesMap[eventName] = eventTimes
+	// Send the request using the default HTTP client
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+		return
 	}
-
-	// loop through eventTimesMap
-	for eventName, eventTimes := range eventTimesMap {
-		for _, eventTime := range eventTimes {
-			raceParams.EventName = eventName
-			raceParams.EventTime = eventTime
-
-			// Convert the struct to JSON
-			jsonData, err := json.Marshal(raceParams)
-			if err != nil {
-				fmt.Println("Error encoding JSON:", err)
-				return
-			}
-
-			// Create a new POST request with the JSON body
-			req, err := http.NewRequest("POST", "http://localhost:8080/api/v1/analysis/MeetingPrediction", bytes.NewBuffer(jsonData))
-			if err != nil {
-				fmt.Println("Error creating request:", err)
-				return
-			}
-
-			// Set the appropriate headers
-			req.Header.Set("Content-Type", "application/json")
-
-			// Send the request using the default HTTP client
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				fmt.Println("Error sending request:", err)
-				return
-			}
-			defer resp.Body.Close()
-
-		}
-	}
+	defer resp.Body.Close()
 
 	c.JSON(http.StatusOK, gin.H{"simulationResults": "Predictions have been made successfully"})
 }
-
 
 func insertPredictions(db *sql.DB, data models.AnalysisData) error {
 
@@ -115,30 +62,42 @@ func insertPredictions(db *sql.DB, data models.AnalysisData) error {
 	stmt, err := db.Prepare(`
 		INSERT INTO EventPredictions (
 					event_date, selection_id, 
-					selection_name, odds, 
+					selection_name, odds, age,
 					clean_bet_score, average_position, 
 					average_rating, event_name, 
-					event_time, selection_position, num_runners)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					event_time, selection_position, num_runners, number_runs, prefered_distance, current_distance)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
+	ageStr := strings.Split(data.Age, " ")[0]
+	ageInt, _ := strconv.Atoi(ageStr)
+	numberOfRuns := strings.Split(data.AllCources, ",")
+
+	numRunners := strings.Split(data.NumberOfRunners, " ")[0]
+	intNumRunners, _ := strconv.Atoi(numRunners)
+
 	// Execute the INSERT statement
 	_, err = stmt.Exec(
-						data.EventDate, 
-						data.SelectionID, 
-						data.SelectionName, 
-						data.AvgOdds, 
-						data.TotalScore, 
-						data.AvgPosition, 
-						data.AvgRating, 
-						data.EventName, 
-						data.EventTime, 
-						data.Position, 
-						data.NumRuns)
+		data.EventDate,
+		data.SelectionID,
+		data.SelectionName,
+		math.Round(data.AvgOdds*1000)/1000,
+		ageInt,
+		math.Round(data.TotalScore*1000)/1000,
+		data.AvgPosition,
+		math.Round(data.AvgRating*1000)/1000,
+		data.EventName,
+		data.EventTime,
+		data.Position,
+		intNumRunners,
+		len(numberOfRuns),
+		math.Round(data.PreferedDistance*1000)/1000,
+		math.Round(data.CurrentDistance*1000)/1000,
+	)
 	if err != nil {
 		return err
 	}
