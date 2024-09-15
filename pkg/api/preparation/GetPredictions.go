@@ -103,10 +103,13 @@ func GetPredictions(c *gin.Context) {
 		position, err := getPosition(racePrdiction.SelectionID, date, db)
 
 		if err != nil {
-			continue
+			racePrdiction.Position = "?"
+		}else {
+			racePrdiction.Position = position
+
 		}
 
-		racePrdiction.Position = position
+		
 
 
 		predictions = append(predictions, racePrdiction)
