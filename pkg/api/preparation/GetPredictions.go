@@ -189,3 +189,18 @@ func getPosition(selectionId int, race_date string, db *sql.DB) (string, error) 
 	}
 	return position, nil
 }
+
+func formExit(formLastRunDate string, selectionId int, db *sql.DB) (bool, error) {
+	var count int
+	err := db.QueryRow(`
+				Select count(*)
+				from selectionsForm 
+				where DATE(race_date) = ? and selection_id = ?;`, formLastRunDate, selectionId).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	if count > 0 {
+		return true, nil
+	}
+	return false, nil
+}

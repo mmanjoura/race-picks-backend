@@ -111,7 +111,6 @@ func RegisterHandler(c *gin.Context) {
 		FullName:    user.FullName,
 		Email:       user.Email,
 		Password:    hashedPassword,
-		PhoneNumber: user.PhoneNumber,
 		UserType:    "user",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),

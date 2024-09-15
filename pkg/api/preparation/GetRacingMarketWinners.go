@@ -3,7 +3,6 @@ package preparation
 import (
 	"net/http"
 
-
 	"github.com/gin-gonic/gin"
 
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
@@ -15,14 +14,11 @@ func GetRacingMarketWinners(c *gin.Context) {
 
 	var raceDate models.EventDate
 
-
-
 	// Bind JSON input to optimalParams
 	if err := c.ShouldBindJSON(&raceDate); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 
 	rows, err := db.Query(`
 							select 
@@ -49,10 +45,18 @@ func GetRacingMarketWinners(c *gin.Context) {
 	defer rows.Close()
 
 	for _, selection := range selections {
-		err = SaveSelectionsForm(db, c, selection.ID, selection.Link, selection.Name,  raceDate.Date)
+		exit, err := formExit(raceDate.Date, selection.ID, db)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
+		}
+
+		if !exit {
+			err = SaveSelectionsForm(db, c, selection.ID, selection.Link, selection.Name, raceDate.Date)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "postion updated successfully"})
