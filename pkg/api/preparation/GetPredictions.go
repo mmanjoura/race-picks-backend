@@ -17,8 +17,13 @@ func GetPredictions(c *gin.Context) {
 
 	// Query for today's runners
 	date := c.Query("event_date")
+	delta := c.Query("delta")
+	avgPosition := c.Query("avg_position")
+	totalRuns := c.Query("total_runs")
+
 	currentBet := 10.0
 	totalBet := 10.0
+
 	var eventPredicitonsResponse models.EventPredictionResponse
 
 	var pnl []float64
@@ -61,8 +66,13 @@ func GetPredictions(c *gin.Context) {
 							created_at,
 							updated_at
 						FROM EventPredictions
-						WHERE event_date = ? and  distanceTolerence < 1 and average_position < 2 and number_runs < 10 
-						order by clean_bet_score DESC`, date)
+						WHERE event_date = ? 
+							AND  distanceTolerence < ? 
+							AND average_position < ? 
+							AND number_runs < ? 
+							AND current_distance BETWEEN 6 AND 14
+
+						order by clean_bet_score DESC`, date, delta, avgPosition, totalRuns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -107,9 +117,7 @@ func GetPredictions(c *gin.Context) {
 		}else {
 			racePrdiction.Position = position
 
-		}
-
-		
+		}	
 
 
 		predictions = append(predictions, racePrdiction)

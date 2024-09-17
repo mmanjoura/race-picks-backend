@@ -163,7 +163,7 @@ func getTodayRunners() ([]models.TodayRunners, error) {
 	})
 
 	// Start scraping the URL
-	c.Visit("https://www.sportinglife.com/racing/abc-guide/abc-guide")
+	c.Visit("https://www.sportinglife.com/racing/abc-guide")
 
 	return horses, nil
 }

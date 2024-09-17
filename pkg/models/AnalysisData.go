@@ -73,18 +73,19 @@ type AnalyzeTrends struct {
 }
 
 type RaceParameters struct {
-	ID           int    `json:"id"`
-	RaceType     string `json:"race_type"`
-	RaceDistance string `json:"race_distance"`
-	Handicap     bool   `json:"handicap"`
-	RaceClass    string `json:"race_class"`
-	EventName    string `json:"event_name"`
-	EventDate    string `json:"event_date"`
-	EventTime    string `json:"event_time"`
-	Positions    string `json:"positions"`
-	Years        string `json:"years"`
-	Ages         string `json:"ages"`
-	BetAmount    string `json:"bet_amount"`
+	ID             int    `json:"id"`
+	RaceType       string `json:"race_type"`
+	RaceDistance   string `json:"race_distance"`
+	Handicap       bool   `json:"handicap"`
+	RaceClass      string `json:"race_class"`
+	EventName      string `json:"event_name"`
+	EventDate      string `json:"event_date"`
+	EventTime      string `json:"event_time"`
+	Positions      string `json:"positions"`
+	Years          string `json:"years"`
+	Ages           string `json:"ages"`
+	BetAmount      string `json:"bet_amount"`
+	NumRunAnalysis string    `json:"num_run_analysis"`
 }
 
 type CurrentHorseData struct {

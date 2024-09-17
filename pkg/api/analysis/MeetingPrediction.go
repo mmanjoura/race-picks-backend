@@ -22,11 +22,16 @@ import (
 func GetMeetingPrediction(c *gin.Context) {
 	db := database.Database.DB
 	var raceParams models.RaceParameters
-	LeastNumberOfRunsAnalysis := 4
 
 	// Bind JSON input to optimalParams
 	if err := c.ShouldBindJSON(&raceParams); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	LeastNumberOfRunsAnalysis, err := strconv.Atoi(raceParams.NumRunAnalysis)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -106,8 +111,6 @@ func GetMeetingPrediction(c *gin.Context) {
 	}
 
 	var analysisData []models.AnalysisData
-
-
 
 	for _, selection := range selections {
 		// Execute the query
@@ -191,20 +194,27 @@ func GetMeetingPrediction(c *gin.Context) {
 		}
 		data.CurrentDistance = distance
 
-		if selection.ID == 1154889 {
-			fmt.Println("Selection ID: ", selection.ID)
-		}
-
-		// Ignore selections with given parameters
-		if yearExistsInDates(raceParams.Years, strings.Split(data.AllRaceDates, ",")) ||
-			positionExistsInArray(raceParams.Positions, strings.Split(data.AllPositions, ",")) ||
-			ageExistsInString(raceParams.Ages, data.Age) {
-
-			continue
-		}
-
 		if data.SelectionID != 0 {
+			strRaceDate := string(data.RaceDate)[:10]
+			const layout = "2006-01-02"
+			// Convert the string dates to time.Time
+			raceDate, err := time.Parse(layout, strRaceDate)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			analysisDate, err := time.Parse(layout, raceParams.EventDate)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
 
+			// When doing analysis only consider previous performances
+			if raceDate.After(analysisDate) || raceDate.Equal(analysisDate) {
+				continue
+			}
+
+			// Now start Analysis
 			stringData := selection.EventDate[:10]
 			data.EventDate = stringData
 			data.NumberOfRunners = selection.NumberOfRunners
@@ -219,18 +229,13 @@ func GetMeetingPrediction(c *gin.Context) {
 			data.EventTime = selection.EventTime
 			data.SelectionName = selection.Name
 			data.EventName = selection.EventName
-			data.PreferedDistance = perferedDistancd
-
-			// Convert time.Time to string
-			strDate := string(data.RaceDate)[:10]
-
-			if strDate == raceParams.EventDate {
-				continue
-			}
 		
+
 			analysisData = append(analysisData, data)
 
 		}
+
+
 	}
 
 	// Step 2: Sort the slice by TotalScore
@@ -263,9 +268,6 @@ func GetMeetingPrediction(c *gin.Context) {
 			}
 		}
 	}
-
-	// 	potentilaWinners := findClosestHorse(result)
-	// 	mostLikelyWinners[result[0].EventTime] = potentilaWinners
 
 	c.JSON(http.StatusOK, gin.H{"simulationResults": mpResult})
 }
@@ -518,7 +520,7 @@ func ScoreSelection(selection models.AnalysisData, params models.RaceParameters,
 	switch {
 	case avgDistance <= 14:
 
-		score += calculateDistanceScore(distanceDiff, []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}, []float64{9, 8, 7, 6, 5, 4, 3, 2, 1})
+		score += calculateDistanceScore(distanceDiff, []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}, []float64{15, 13, 11, 9, 7, 5, 3, 1, 0})
 	default:
 
 		score += calculateDistanceScore(distanceDiff, []float64{0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5}, []float64{9, 8, 7, 6, 5, 4, 3, 2, 1})
