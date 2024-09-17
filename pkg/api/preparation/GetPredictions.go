@@ -48,31 +48,34 @@ func GetPredictions(c *gin.Context) {
 	rows, err = db.Query(`SELECT id,
 							selection_id,
 							selection_name,
-							odds,
-							age,
-							clean_bet_score,
-							average_position,
-							average_rating,
+							COALESCE(odds, '') as odds,
+							COALESCE(age, '') as age,
+							COALESCE(clean_bet_score, '') as clean_bet_score,
+							COALESCE(average_position, '') as average_position,
+							COALESCE(average_rating, '') as average_rating,
 							event_name,
-							event_date,
-							race_date,
-							event_time,
-							selection_position,
-							ABS(prefered_distance - current_distance)  as distanceTolerence,
-							num_runners,
-							number_runs,
-							prefered_distance,
-							current_distance,
+							COALESCE(event_date, '') as event_date,
+							COALESCE(race_date, '') as race_date,
+							COALESCE(event_time, '') as event_time,
+							COALESCE(selection_position, '') as selection_position,
+							ABS(prefered_distance - current_distance) as distanceTolerence,
+							COALESCE(num_runners, '') as num_runners,
+							COALESCE(number_runs, '') as number_runs,
+							COALESCE(prefered_distance, '') as prefered_distance,
+							COALESCE(current_distance, '') as current_distance,
+							COALESCE(potential_return, '') as potential_return,
+							COALESCE(current_event_price, '') as current_event_price,
+							COALESCE(current_event_position, '') as current_event_position,
 							created_at,
 							updated_at
 						FROM EventPredictions
-						WHERE event_date = ? 
-							AND  distanceTolerence < ? 
+						WHERE event_date = ?  
+							AND distanceTolerence < ? 
 							AND average_position < ? 
 							AND number_runs < ? 
-							AND current_distance BETWEEN 6 AND 14
-
-						order by clean_bet_score DESC`, date, delta, avgPosition, totalRuns)
+						
+						ORDER BY clean_bet_score DESC Limit 5`, date, delta, avgPosition, totalRuns)
+	
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -80,6 +83,7 @@ func GetPredictions(c *gin.Context) {
 	defer rows.Close()
 
 	var predictions []models.EventPrediction
+
 	for rows.Next() {
 		racePrdiction := models.EventPrediction{}
 		err := rows.Scan(
@@ -101,6 +105,9 @@ func GetPredictions(c *gin.Context) {
 			&racePrdiction.NumbeRuns,
 			&racePrdiction.PreferredDistance,
 			&racePrdiction.CurrentDistance,
+			&racePrdiction.PotentialReturn,
+			&racePrdiction.CurrentEventPrice,
+			&racePrdiction.CurrentEventPosition,
 			&racePrdiction.CreatedAt,
 			&racePrdiction.UpdatedAt,
 			

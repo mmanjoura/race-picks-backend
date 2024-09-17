@@ -18,6 +18,13 @@ import (
 	"github.com/mmanjoura/race-picks-backend/pkg/models"
 )
 
+type Selection struct {
+	ID        int
+	Name      string
+	EventDate time.Time
+	NumberOfRuns int
+}
+
 // RacePicksSimulation handles the simulation of race picks and calculates win probabilities.
 func GetMeetingPrediction(c *gin.Context) {
 	db := database.Database.DB
@@ -229,6 +236,7 @@ func GetMeetingPrediction(c *gin.Context) {
 			data.EventTime = selection.EventTime
 			data.SelectionName = selection.Name
 			data.EventName = selection.EventName
+			data.EventLink = selection.EventLink
 		
 
 			analysisData = append(analysisData, data)
@@ -1088,4 +1096,86 @@ func Contains[T comparable](slice []T, element T) bool {
 		}
 	}
 	return false
+}
+
+func insertPredictions(db *sql.DB, data models.AnalysisData) error {
+
+	// Prepare the INSERT statement
+	stmt, err := db.Prepare(`
+		INSERT INTO EventPredictions (
+					event_link,
+					event_date, race_date, selection_id,
+					selection_name, odds, age,
+					clean_bet_score, average_position,
+					average_rating, event_name,
+					event_time, selection_position, num_runners, number_runs, prefered_distance, current_distance)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	raceDate := string(data.RaceDate)[:10]
+
+	ageStr := strings.Split(data.Age, " ")[0]
+	ageInt, _ := strconv.Atoi(ageStr)
+	numberOfRuns := strings.Split(data.AllCources, ",")
+
+	numRunners := strings.Split(data.NumberOfRunners, " ")[0]
+	intNumRunners, _ := strconv.Atoi(numRunners)
+
+	// Execute the INSERT statement
+	_, err = stmt.Exec(
+		data.EventLink,
+		data.EventDate,
+		raceDate,
+		data.SelectionID,
+		data.SelectionName,
+		math.Round(data.AvgOdds*1000)/1000,
+		ageInt,
+		math.Round(data.TotalScore*1000)/1000,
+		data.AvgPosition,
+		math.Round(data.AvgRating*1000)/1000,
+		data.EventName,
+		data.EventTime,
+		data.Position,
+		intNumRunners,
+		len(numberOfRuns),
+		math.Round(data.PreferedDistance*1000)/1000,
+		math.Round(data.CurrentDistance*1000)/1000,
+	)
+	if err != nil {
+		return err
+	}
+
+	// Return nil if no error occurred
+	return nil
+}
+func deletePredictions(db *sql.DB, eventDate, eventName, eventTime string) error {
+	// Check if a record with the same event_date and selection_id exists
+	var exists bool
+	err := db.QueryRow(`
+		SELECT EXISTS (
+			SELECT 1 FROM EventPredictions
+			WHERE DATE(event_date) = ? and event_name = ? and event_time = ?
+		)
+	`, eventDate, eventName, eventTime).Scan(&exists)
+	if err != nil {
+		return err
+	}
+
+	// If a record exists, delete it
+	if exists {
+		_, err = db.Exec(`
+			DELETE FROM EventPredictions
+			WHERE DATE(event_date) = ? and event_name = ? and event_time = ?
+		`, eventDate, eventName, eventTime)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Return nil if no error occurred
+	return nil
 }

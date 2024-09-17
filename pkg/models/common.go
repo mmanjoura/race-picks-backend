@@ -2,6 +2,13 @@ package models
 
 import "time"
 
+// Struct to store the horse's position and price
+type HorseDetails struct {
+    Position string
+    Price    string
+	PotentialReturn float64
+}
+
 type Selection struct {
 	ID      int
 	Name    string

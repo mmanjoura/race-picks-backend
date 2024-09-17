@@ -50,12 +50,10 @@ func SaveSelectionsForm(db *sql.DB, c *gin.Context, selectionID int, selectionLi
 		}
 	}
 
-
 	return nil
 }
 
 func SaveSelectionForm(db *sql.DB, selectionForm models.SelectionsForm, c *gin.Context, selectionName string, selectionID int) error {
-
 
 	// Start a transaction
 	tx, err := db.BeginTx(c, nil)
@@ -67,10 +65,10 @@ func SaveSelectionForm(db *sql.DB, selectionForm models.SelectionsForm, c *gin.C
 	fmt.Println("Transaction started")
 
 	// for _, selectionForm := range selectionsForm {
-		// Processing and conversions (omitted for brevity)
-		fmt.Println("Inserting record for:", selectionForm)
+	// Processing and conversions (omitted for brevity)
+	fmt.Println("Inserting record for:", selectionForm)
 
-		res, err := tx.ExecContext(c, `
+	res, err := tx.ExecContext(c, `
         INSERT INTO SelectionsForm (
 			selection_name,
 			selection_id,
@@ -94,23 +92,23 @@ func SaveSelectionForm(db *sql.DB, selectionForm models.SelectionsForm, c *gin.C
 			updated_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			selectionName, selectionID, selectionForm.RaceClass, selectionForm.RaceDate, selectionForm.Position,
-			selectionForm.Rating, selectionForm.RaceType, selectionForm.Racecourse,
-			selectionForm.Distance, selectionForm.Going,
-			selectionForm.SPOdds, selectionForm.Age, selectionForm.Trainer,
-			selectionForm.Sex, selectionForm.Sire, selectionForm.Dam, selectionForm.Owner,
-			time.Now(),
-			time.Now())
+		selectionName, selectionID, selectionForm.RaceClass, selectionForm.RaceDate, selectionForm.Position,
+		selectionForm.Rating, selectionForm.RaceType, selectionForm.Racecourse,
+		selectionForm.Distance, selectionForm.Going,
+		selectionForm.SPOdds, selectionForm.Age, selectionForm.Trainer,
+		selectionForm.Sex, selectionForm.Sire, selectionForm.Dam, selectionForm.Owner,
+		time.Now(),
+		time.Now())
 
-		if err != nil {
-			fmt.Println("Error executing SQL:", err)
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return err
-		}
+	if err != nil {
+		fmt.Println("Error executing SQL:", err)
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return err
+	}
 
-		rowsAffected, _ := res.RowsAffected()
-		fmt.Println("Rows affected:", rowsAffected)
+	rowsAffected, _ := res.RowsAffected()
+	fmt.Println("Rows affected:", rowsAffected)
 	// }
 
 	// Commit the transaction
@@ -274,8 +272,6 @@ func GetLatest(selectionLink string, lasRuntDate time.Time) ([]models.Selections
 
 	return selectionsForm, nil
 }
-
-
 
 func ConvertDistance(distanceStr string) string {
 	// if this string contain "."
@@ -477,11 +473,78 @@ func GetSelectionForm(selectionLink string) ([]models.SelectionsForm, error) {
 	return selectionsForm, nil
 }
 
+func GePredictionWinners(db *sql.DB, c *gin.Context, selectionID int, eventLink, selectionName string, date string) error {
+
+	rows, err := db.Query(`
+			select selection_id, event_date  from EventRunners where selection_id = ? order by event_date desc limit 1`, selectionID)
+	if err != nil {
+		return err
+	}
+	// scan the rows
+	var raceDate time.Time
+	var selection_id int
+	for rows.Next() {
+		err := rows.Scan(&selection_id, &raceDate)
+		if err != nil {
+			return err
+		}
+	}
+	defer rows.Close()
+
+	predictionDetail, err := GetPredictionResult(selectionName, eventLink)
+	if err != nil {
+		return err
+	}
+	_ = predictionDetail
 
 
 
+	return nil
+}
 
+// Function to scrape the position and price based on the horse name
+func GetPredictionResult(selectionName, eventLink string) (models.HorseDetails, error) {
+	var details models.HorseDetails
 
+	resultLink := strings.Replace(eventLink, "/racecards/", "/results/", 1)
+	resultLink = strings.Replace(resultLink, "racecard/", "", 1)
 
+	// Initialize a new collector
+	c := colly.NewCollector()
 
+	// Callback for when the horse name is found
+	c.OnHTML("div.ResultRunner__StyledResultRunnerWrapper-sc-58kifh-13", func(e *colly.HTMLElement) {
+		// Check if the horse name matches the selectionName
+		horseName := e.ChildText("div.ResultRunner__StyledHorseName-sc-58kifh-5 a")
+		if strings.TrimSpace(horseName) == selectionName {
+			// Extract the position
+			position := e.ChildText("div[data-test-id='position-no'] span.Ordinal__OrdinalWrapper-sc-3wdkxx-0")
+
+			// Extract the price
+			price := e.ChildText("span.BetLink__BetLinkStyle-jgjcm-0 span")
+
+			// Assign values to the HorseDetails struct
+			details.Position = strings.TrimSpace(position)
+			details.Price = strings.TrimSpace(price)
+		}
+	})
+
+	// Handle errors in case of any issue
+	c.OnError(func(_ *colly.Response, err error) {
+		err = fmt.Errorf("Error occurred while scraping: %v", err)
+	})
+
+	// Visit the results page
+	err := c.Visit("https://www.sportinglife.com" + resultLink)
+	if err != nil {
+		return models.HorseDetails{}, fmt.Errorf("Failed to visit the URL: %v", err)
+	}
+
+	// Check if position and price details were scraped successfully
+	if details.Price == "" || details.Position == "" {
+		return models.HorseDetails{}, fmt.Errorf("Details not found for horse: %s", selectionName)
+	}
+
+	return details, nil
+}
 

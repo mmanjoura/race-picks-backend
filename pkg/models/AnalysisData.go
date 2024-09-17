@@ -85,7 +85,7 @@ type RaceParameters struct {
 	Years          string `json:"years"`
 	Ages           string `json:"ages"`
 	BetAmount      string `json:"bet_amount"`
-	NumRunAnalysis string    `json:"num_run_analysis"`
+	NumRunAnalysis string `json:"num_run_analysis"`
 }
 
 type CurrentHorseData struct {
@@ -184,9 +184,11 @@ type ProfitAndLoss struct {
 	CleanBetScore float64 `json:"clean_bet_score"`
 }
 
+
 // EventPrediction represents a row from the EventPredictions table.
 type EventPrediction struct {
 	ID                int       `json:"id"`
+	EventLink         string    `json:"event_link"`
 	SelectionID       int       `json:"selection_id"`
 	SelectionName     string    `json:"selection_name"`
 	Odds              float64   `json:"odds"`
@@ -205,6 +207,9 @@ type EventPrediction struct {
 	NumbeRuns         int       `json:"number_runs"`
 	PreferredDistance float64   `json:"prefered_distance"`
 	CurrentDistance   float64   `json:"current_distance"`
+	PotentialReturn   string   `json:"potential_return"`
+	CurrentEventPrice string   `json:"current_event_price"`
+	CurrentEventPosition string  `json:"current_event_position"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
@@ -213,4 +218,12 @@ type EventPredictionResponse struct {
 	Selections  []EventPrediction `json:"selections"`
 	TotalBet    float64           `json:"total_bet"`
 	TotalReturn float64           `json:"total_return"`
+}
+
+type GetWinnerParams struct {
+	EventDate   string  `json:"event_date"`
+	Delta       float64 `json:"delta"`
+	AvgPosition float64 `json:"avg_position"`
+	TotalRuns   int     `json:"total_runs"`
+	Stake       string  `json:"stake"`
 }
