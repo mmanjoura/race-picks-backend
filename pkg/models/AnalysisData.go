@@ -189,9 +189,10 @@ type ProfitAndLoss struct {
 type EventPrediction struct {
 	ID                int       `json:"id"`
 	EventLink         string    `json:"event_link"`
+	SelectionLink	 string    `json:"selection_link"`
 	SelectionID       int       `json:"selection_id"`
 	SelectionName     string    `json:"selection_name"`
-	Odds              float64   `json:"odds"`
+	Odds              string   `json:"odds"`
 	Age               int       `json:"age"`
 	CleanBetScore     float64   `json:"clean_bet_score"`
 	AveragePosition   float64   `json:"average_position"`
@@ -222,8 +223,7 @@ type EventPredictionResponse struct {
 
 type GetWinnerParams struct {
 	EventDate   string  `json:"event_date"`
-	Delta       float64 `json:"delta"`
-	AvgPosition float64 `json:"avg_position"`
+	Delta       int `json:"delta"`
+	AvgPosition int `json:"avg_position"`
 	TotalRuns   int     `json:"total_runs"`
-	Stake       string  `json:"stake"`
 }

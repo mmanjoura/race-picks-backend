@@ -1,7 +1,6 @@
 package preparation
 
 import (
-	"database/sql"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -58,7 +57,7 @@ func GetRacingMarketData(c *gin.Context) {
 			todayRunner.SelectionName,
 			todayRunner.EventTime,
 			todayRunner.EventName,
-			todayRunner.Price,
+			0,
 			time.Now(),
 			todayRunner.RaceConditon.RaceDistance,
 			todayRunner.RaceConditon.RaceCategory,
@@ -76,45 +75,34 @@ func GetRacingMarketData(c *gin.Context) {
 
 	for _, todayRunner := range todayRunners {
 
-		err := GetHorseForm(db, c , todayRunner.SelectionName,  todayRunner.SelectionLink, todayRunner.SelectionID)
+		form, err := GetSelectionForm(todayRunner.SelectionLink)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
+		}
+
+		for _, fr := range form {
+
+			lastRunDate := fr.RaceDate.Format("2006-01-02")
+			exit, err := formExit(lastRunDate, todayRunner.SelectionID, db)
+			if err != nil {
+
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			if !exit {
+
+				err = SaveSelectionForm(db, fr, c, todayRunner.SelectionName, todayRunner.SelectionID)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
 		}
 
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Horse information saved successfully"})
 
-}
-
-func GetHorseForm(db *sql.DB, c *gin.Context, SelectionName,  selectionLink string, selectionId int) error {
-
-		from, err := GetSelectionForm(selectionLink)
-		if err != nil {
-			return err
-		}
-		for _, fr := range from {
-
-			lastRunDate := fr.RaceDate.Format("2006-01-02")
-			// Do we have this selection in the database?
-			exit, err := formExit(lastRunDate, selectionId, db)
-
-			if err != nil {
-				return err
-			}
-
-			if !exit {
-
-				err = SaveSelectionForm(db, fr, c, SelectionName, selectionId)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
-	// }
 }
 
 func getTodayRunners() ([]models.TodayRunners, error) {
@@ -172,9 +160,6 @@ func getEventConditons(eventLink string) models.RaceConditon {
 	// Initialize the collector
 	c := colly.NewCollector()
 	raceConditons := models.RaceConditon{}
-
-	// Define variables to hold extracted values
-	// var raceCategory, raceDistance, trackCondition, numberOfRunners, raceClass, raceTrack string
 
 	// Set the HTML selector and processing logic
 	c.OnHTML("li.RacingRacecardSummary__StyledAdditionalInfo-sc-1intsbr-2", func(e *colly.HTMLElement) {

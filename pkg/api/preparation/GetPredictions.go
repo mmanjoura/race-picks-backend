@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
@@ -15,11 +16,13 @@ import (
 func GetPredictions(c *gin.Context) {
 	db := database.Database.DB
 
-	// Query for today's runners
-	date := c.Query("event_date")
-	delta := c.Query("delta")
-	avgPosition := c.Query("avg_position")
-	totalRuns := c.Query("total_runs")
+	params := models.GetWinnerParams{}
+
+	// Bind JSON input to optimalParams
+	if err := c.ShouldBindJSON(&params); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	currentBet := 10.0
 	totalBet := 10.0
@@ -74,7 +77,7 @@ func GetPredictions(c *gin.Context) {
 							AND average_position < ? 
 							AND number_runs < ? 
 						
-						ORDER BY clean_bet_score DESC Limit 5`, date, delta, avgPosition, totalRuns)
+						ORDER BY clean_bet_score DESC Limit 5`, params.EventDate, params.Delta, params.AvgPosition, params.TotalRuns)
 	
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -117,12 +120,13 @@ func GetPredictions(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		position, err := getPosition(racePrdiction.SelectionID, date, db)
+		position, err := getPosition(racePrdiction.SelectionID, params.EventDate, db)
 
 		if err != nil {
 			racePrdiction.Position = "?"
 		}else {
 			racePrdiction.Position = position
+			
 
 		}	
 
@@ -142,8 +146,33 @@ func GetPredictions(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		if p.CurrentEventPrice == "" {
+			continue
+		}
+
+		odds_numerator := strings.Split(p.CurrentEventPrice, "/")[0]
+		odds_denomenaor := strings.Split(p.CurrentEventPrice, "/")[1]
+
+		// convert odds to float64
+		oddsFloat_numberator, err := strconv.ParseFloat(odds_numerator, 64)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		oddsFloat_denomenator, err := strconv.ParseFloat(odds_denomenaor, 64)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		oddsFloat := oddsFloat_numberator/oddsFloat_denomenator
 		if position == "1"{
-			pnl = append(pnl, currentBet*p.Odds)
+			pnl = append(pnl, currentBet*oddsFloat + currentBet)
 		}
 		totalBets = append(totalBets, totalBet)
 	}

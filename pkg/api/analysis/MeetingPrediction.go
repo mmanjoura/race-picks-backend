@@ -237,6 +237,7 @@ func GetMeetingPrediction(c *gin.Context) {
 			data.SelectionName = selection.Name
 			data.EventName = selection.EventName
 			data.EventLink = selection.EventLink
+			data.SelecionLink = selection.Link
 		
 
 			analysisData = append(analysisData, data)
@@ -1104,12 +1105,13 @@ func insertPredictions(db *sql.DB, data models.AnalysisData) error {
 	stmt, err := db.Prepare(`
 		INSERT INTO EventPredictions (
 					event_link,
+					selection_link,
 					event_date, race_date, selection_id,
 					selection_name, odds, age,
 					clean_bet_score, average_position,
 					average_rating, event_name,
 					event_time, selection_position, num_runners, number_runs, prefered_distance, current_distance)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -1128,11 +1130,12 @@ func insertPredictions(db *sql.DB, data models.AnalysisData) error {
 	// Execute the INSERT statement
 	_, err = stmt.Exec(
 		data.EventLink,
+		data.SelecionLink,
 		data.EventDate,
 		raceDate,
 		data.SelectionID,
 		data.SelectionName,
-		math.Round(data.AvgOdds*1000)/1000,
+		0,
 		ageInt,
 		math.Round(data.TotalScore*1000)/1000,
 		data.AvgPosition,

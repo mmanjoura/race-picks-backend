@@ -80,7 +80,6 @@ func SaveSelectionForm(db *sql.DB, selectionForm models.SelectionsForm, c *gin.C
 			racecourse,
 			distance,
 			going,
-
 			sp_odds,
 			Age,
 			Trainer,
@@ -433,10 +432,7 @@ func GetSelectionForm(selectionLink string) ([]models.SelectionsForm, error) {
 
 		// Convert raceDate to time.Time
 		parsedRaceDate, _ := time.Parse("2006-01-02", raceDate)
-
-		// if !parsedRaceDate.After(lasRuntDate) {
-		// 	return
-		// }
+		// parsedEventDate, _ := time.Parse("2006-01-02", eventDate)
 
 		// Create a new SelectionsForm object with the scraped data
 		selectionForm := models.SelectionsForm{
@@ -463,8 +459,6 @@ func GetSelectionForm(selectionLink string) ([]models.SelectionsForm, error) {
 		// Append the selection form to the slice
 		selectionsForm = append(selectionsForm, selectionForm)
 
-		// Abort the request after processing the first row
-		// e.Request.Abort()
 	})
 
 	// Start scraping the URL
@@ -496,8 +490,6 @@ func GePredictionWinners(db *sql.DB, c *gin.Context, selectionID int, eventLink,
 		return err
 	}
 	_ = predictionDetail
-
-
 
 	return nil
 }
@@ -547,4 +539,3 @@ func GetPredictionResult(selectionName, eventLink string) (models.HorseDetails, 
 
 	return details, nil
 }
-
