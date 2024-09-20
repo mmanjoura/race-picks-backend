@@ -9,10 +9,11 @@ type Selection struct {
 	ID              int    `json:"id"`
 	Name            string `json:"name"`
 	EventName       string `json:"event_name"`
+	MeetingName     string `json:"meeting_name"`
 	EventDate       string `json:"event_date"`
 	EventTime       string `json:"event_time"`
 	Odds            string `json:"odds"`
-	Position		string `json:"position"`
+	Position        string `json:"position"`
 	RaceCategory    string `json:"race_category"`
 	RaceDistance    string `json:"race_distance"`
 	TrackCondition  string `json:"track_condition"`
@@ -20,7 +21,7 @@ type Selection struct {
 	RaceTrack       string `json:"race_track"`
 	RaceClass       string `json:"race_class"`
 	Link            string `json:"link"`
-	EventLink	   string `json:"event_link"`
+	EventLink       string `json:"event_link"`
 }
 
 // Helper function to parse race distance considering miles, furlongs, and yards

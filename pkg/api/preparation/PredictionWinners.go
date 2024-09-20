@@ -2,6 +2,9 @@ package preparation
 
 import (
 	"database/sql"
+	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"net/http"
@@ -24,6 +27,8 @@ func GetPredictionWinners(c *gin.Context) {
 		return
 	}
 
+	params.Stake = 10.0
+
 	rows, err := db.Query(`SELECT 	selection_id,
 									selection_name,
 									selection_link					
@@ -31,7 +36,7 @@ func GetPredictionWinners(c *gin.Context) {
 									WHERE event_date = ?
 									AND average_position < ? 
 									AND number_runs < ?`,
-									params.EventDate, params.AvgPosition, params.TotalRuns)
+		params.EventDate, params.AvgPosition, params.TotalRuns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -51,17 +56,64 @@ func GetPredictionWinners(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
 		predictions = append(predictions, racePrdiction)
 	}
 
-
 	err = SaveDateForm(predictions, c, params, db)
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"simulationResults": predictions})
+}
+
+func saveWinners(db *sql.DB, winner models.Winner) error {
+
+	// Start a transaction
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			tx.Rollback() // Rollback the transaction in case of error
+		} else {
+			tx.Commit() // Commit the transaction if all goes well
+		}
+	}()
+
+	_, err = tx.Exec(`DELETE FROM Winners WHERE selection_id = ?`, winner.SelectionID)
+	if err != nil {
+		log.Println("Failed to delete existing records:", err)
+		return err
+	}
+
+	// Step 2: INSERT new record
+	_, err = tx.Exec(`
+    INSERT INTO Winners (
+        selection_id, 
+        selection_name, 
+        current_odds, 
+        current_position, 
+        current_return,
+		event_date
+    ) 
+    VALUES (?, ?, ?, ?, ?, ?);`,
+
+		winner.SelectionID,
+		winner.SelectionName,
+		winner.CurrentOdds,
+		winner.CurrentPosition,
+		winner.CurrentReturn,
+		winner.EventDate)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 func SaveDateForm(predictions []models.EventPrediction, c *gin.Context, params models.GetWinnerParams, db *sql.DB) error {
 
@@ -75,10 +127,39 @@ func SaveDateForm(predictions []models.EventPrediction, c *gin.Context, params m
 		for _, fr := range form {
 
 			parsedEventDate, _ := time.Parse("2006-01-02", params.EventDate)
+
 			if fr.EventDate == parsedEventDate {
-				_, err = db.Exec(`UPDATE EventPredictions SET current_event_price = ?, current_event_position = ?  WHERE event_date = ? AND selection_id = ?`, fr.SPOdds, fr.Position, params.EventDate, prediction.SelectionID)
-				if err != nil {
-					return err
+
+				currentPostion := strings.Split(fr.Position, "/")[0]
+				if currentPostion == "1" {
+
+					nom := strings.Split(fr.SPOdds, "/")[0]
+					denom := strings.Split(fr.SPOdds, "/")[1]
+
+					nomFloatValue, err := strconv.ParseFloat(nom, 64)
+					if err != nil {
+						return err
+					}
+
+					denomFloatValue, err := strconv.ParseFloat(denom, 64)
+					if err != nil {
+						return err
+					}
+
+					var winner models.Winner
+					floatStake := params.Stake
+					winner.SelectionID = prediction.SelectionID
+					winner.SelectionName = prediction.SelectionName
+					winner.CurrentOdds = nomFloatValue / denomFloatValue
+					winner.CurrentPosition = fr.Position
+					winner.CurrentReturn = (winner.CurrentOdds * floatStake) + floatStake
+					winner.EventDate = params.EventDate
+
+					err = saveWinners(db, winner)
+					if err != nil {
+						return err
+					}
+
 				}
 			}
 			exit, err := formExit(params.EventDate, prediction.SelectionID, db)
@@ -97,27 +178,3 @@ func SaveDateForm(predictions []models.EventPrediction, c *gin.Context, params m
 	}
 	return nil
 }
-
-// Function to convert fractional odds to float64
-// func fractionalOddsToFloat(odds string) (float64, error) {
-// 	// Step 1: Remove any non-numeric characters except for the "/" using regex
-// 	re := regexp.MustCompile(`[^\d/]+`)
-// 	cleanedOdds := re.ReplaceAllString(odds, "")
-
-// 	// Step 2: Split the odds by "/"
-// 	parts := strings.Split(cleanedOdds, "/")
-// 	if len(parts) != 2 {
-// 		return 0, fmt.Errorf("invalid odds format: %s", odds)
-// 	}
-
-// 	// Step 3: Convert the numerator and denominator to float64
-// 	numerator, err1 := strconv.ParseFloat(parts[0], 64)
-// 	denominator, err2 := strconv.ParseFloat(parts[1], 64)
-
-// 	if err1 != nil || err2 != nil {
-// 		return 0, fmt.Errorf("error converting odds to float: %v, %v", err1, err2)
-// 	}
-
-// 	// Step 4: Return the decimal odds
-// 	return numerator / denominator, nil
-// }

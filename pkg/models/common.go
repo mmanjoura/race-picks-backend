@@ -4,8 +4,8 @@ import "time"
 
 // Struct to store the horse's position and price
 type HorseDetails struct {
-    Position string
-    Price    string
+	Position        string
+	Price           string
 	PotentialReturn float64
 }
 
@@ -39,7 +39,17 @@ type ScoreBreakdown struct {
 	PositionScore float64 `json:"position_score"`
 }
 
-
-type EventDate struct  {
+type EventDate struct {
 	Date string `json:"event_date"`
+}
+
+// Winner represents the 'winners' table in the database
+type Winner struct {
+	ID               int     `json:"id"`
+	SelectionID      int     `json:"selection_id"`
+	SelectionName    string  `json:"selection_name"`
+	CurrentOdds      float64 `json:"current_odds"`
+	CurrentPosition string  `json:"current_position"`
+	CurrentReturn   float64 `json:"current_return"`
+	EventDate		string  `json:"event_date"`
 }

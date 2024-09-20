@@ -37,10 +37,11 @@ func GetMeetingRunners(c *gin.Context) {
 
 	analysisDataResponse := models.AnalysisDataResponse{}
 
-	eventName := c.Query("event_name")
+	meetingName := c.Query("meeting_name")
 	eventTime := c.Query("event_time")
 	eventDate := c.Query("event_date")
 	raceType := c.Query("race_type")
+	eventName := c.Query("event_name")
 
 	// Get distinct Event name from SelectionsForm table
 	rows, err := db.Query(`
@@ -95,8 +96,8 @@ func GetMeetingRunners(c *gin.Context) {
 			race_track,
 			race_class
 		FROM EventRunners WHERE  
-					event_name = ? and event_time = ? and DATE(event_date) = ?`,
-		eventName, eventTime, eventDate)
+					event_name = ? and event_time = ? and DATE(event_date) = ? and event_name in (SELECT event_name FROM events where country = ?)`,
+		meetingName, eventTime, eventDate, eventName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -108,12 +109,12 @@ func GetMeetingRunners(c *gin.Context) {
 	for rows.Next() {
 		var selection common.Selection
 		// Use sql.NullString for nullable fields
-		var selectionName, eventName, eventDate, eventTime, raceDistance, raceCategory, trackCondition, numberOfRunners, raceTrack, raceClass sql.NullString
+		var selectionName, meetingName, eventDate, eventTime, raceDistance, raceCategory, trackCondition, numberOfRunners, raceTrack, raceClass sql.NullString
 
 		err := rows.Scan(
 			&selection.ID,
 			&selectionName,
-			&eventName,
+			&meetingName,
 			&eventDate,
 			&eventTime,
 			&raceDistance,
@@ -139,7 +140,7 @@ func GetMeetingRunners(c *gin.Context) {
 		}
 		// Convert sql.NullString to regular strings
 		selection.Name = nullableToString(selectionName)
-		selection.EventName = nullableToString(eventName)
+		selection.EventName = nullableToString(meetingName)
 		selection.EventDate = nullableToString(eventDate)
 		selection.EventTime = nullableToString(eventTime)
 		selection.RaceDistance = distance

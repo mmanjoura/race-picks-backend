@@ -27,12 +27,13 @@ func GetTodayMeeting(c *gin.Context) {
 	db := database.Database.DB
 
 	eventDate := c.Query("date")
+	eventName := c.Query("event_name")
 
 	// Execute the query
 	rows, err := db.Query(`
 				SELECT 	event_name, 
 						GROUP_CONCAT(event_time ORDER BY event_time) AS event_times 
-				FROM EventRunners WHERE DATE(event_date) = ? GROUP BY event_name ORDER BY event_name;`, eventDate)
+				FROM EventRunners WHERE DATE(event_date) = ? and event_name in (SELECT event_name FROM events where country = ?) GROUP BY event_name ORDER BY event_name;`, eventDate, eventName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

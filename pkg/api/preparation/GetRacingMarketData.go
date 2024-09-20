@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"database/sql"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gocolly/colly"
 	"github.com/mmanjoura/race-picks-backend/pkg/database"
@@ -25,6 +27,7 @@ func GetRacingMarketData(c *gin.Context) {
 	}
 
 	todayRunners, err := getTodayRunners()
+	// todayRunners, err := TodayRunners(db, c, raceDate.Date)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -37,10 +40,10 @@ func GetRacingMarketData(c *gin.Context) {
 			selection_link,
 			selection_id,
 			event_link,
-			selection_name,	
+			selection_name,
 			event_time,
 			event_name,
-			price,		
+			price,
 			event_date,
 			race_distance,
 			race_category,
@@ -83,22 +86,39 @@ func GetRacingMarketData(c *gin.Context) {
 
 		for _, fr := range form {
 
-			lastRunDate := fr.RaceDate.Format("2006-01-02")
-			exit, err := formExit(lastRunDate, todayRunner.SelectionID, db)
+			// lastRunDate := fr.RaceDate.Format("2006-01-02")
+			// exit, err := formExit(lastRunDate, todayRunner.SelectionID, db)
+			lastRunDate, err := getLastRunDate(db, todayRunner.SelectionID)
+			if err != nil {
+				if err.Error() == "sql: no rows in result set" {
+					err = SaveSelectionForm(db, fr, c, todayRunner.SelectionName, todayRunner.SelectionID)
+					if err != nil {
+
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					continue
+				}
+			}
+
+
+			parsedLastRunDate, _ := time.Parse("2006-01-02", lastRunDate)
+
 			if err != nil {
 
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
 
-			if !exit {
-
+			if fr.EventDate.After(parsedLastRunDate) || fr.EventDate.Equal(parsedLastRunDate){
 				err = SaveSelectionForm(db, fr, c, todayRunner.SelectionName, todayRunner.SelectionID)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
+				if err != nil {
+
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}				
 			}
 		}
-
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Horse information saved successfully"})
@@ -230,4 +250,45 @@ func removeDuplicateOdds(odds string) string {
 
 	// If there is not exactly two '/', return the original string
 	return odds
+}
+
+func TodayRunners(db *sql.DB, c *gin.Context, date string) ([]models.TodayRunners, error) {
+
+	var todayRunners []models.TodayRunners
+	var todayRunner models.TodayRunners
+
+	rows, err := db.Query(`select selection_link,
+	selection_id,
+	event_link,
+	selection_name,
+	event_time,
+	event_name,
+	price,
+	event_date
+
+	from EventRunners where DATE(event_date) = ?`, date)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return todayRunners, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		err := rows.Scan(&todayRunner.SelectionLink,
+			&todayRunner.SelectionID, &todayRunner.EventLink, &todayRunner.SelectionName,
+			&todayRunner.EventTime, &todayRunner.EventName, &todayRunner.Price,
+			&todayRunner.EventDate)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return todayRunners, err
+		}
+		todayRunners = append(todayRunners, todayRunner)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return todayRunners, err
+	}
+
+	return todayRunners, nil
 }

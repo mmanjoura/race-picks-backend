@@ -184,35 +184,34 @@ type ProfitAndLoss struct {
 	CleanBetScore float64 `json:"clean_bet_score"`
 }
 
-
 // EventPrediction represents a row from the EventPredictions table.
 type EventPrediction struct {
-	ID                int       `json:"id"`
-	EventLink         string    `json:"event_link"`
-	SelectionLink	 string    `json:"selection_link"`
-	SelectionID       int       `json:"selection_id"`
-	SelectionName     string    `json:"selection_name"`
-	Odds              string   `json:"odds"`
-	Age               int       `json:"age"`
-	CleanBetScore     float64   `json:"clean_bet_score"`
-	AveragePosition   float64   `json:"average_position"`
-	Position          string    `json:"position"`
-	AverageRating     float64   `json:"average_rating"`
-	EventName         string    `json:"event_name"`
-	EventDate         string    `json:"event_date"`
-	RaceDate          string    `json:"race_date"`
-	EventTime         string    `json:"event_time"`
-	SelectionPosition string    `json:"selection_position"`
-	DistanceTolerence float64   `json:"distance_tolerence"`
-	NumRunners        string    `json:"num_runners"`
-	NumbeRuns         int       `json:"number_runs"`
-	PreferredDistance float64   `json:"prefered_distance"`
-	CurrentDistance   float64   `json:"current_distance"`
-	PotentialReturn   string   `json:"potential_return"`
-	CurrentEventPrice string   `json:"current_event_price"`
-	CurrentEventPosition string  `json:"current_event_position"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID                   int       `json:"id"`
+	EventLink            string    `json:"event_link"`
+	SelectionLink        string    `json:"selection_link"`
+	SelectionID          int       `json:"selection_id"`
+	SelectionName        string    `json:"selection_name"`
+	Odds                 string    `json:"odds"`
+	Age                  int       `json:"age"`
+	CleanBetScore        float64   `json:"clean_bet_score"`
+	AveragePosition      float64   `json:"average_position"`
+	Position             string    `json:"position"`
+	AverageRating        float64   `json:"average_rating"`
+	EventName            string    `json:"event_name"`
+	EventDate            string    `json:"event_date"`
+	RaceDate             string    `json:"race_date"`
+	EventTime            string    `json:"event_time"`
+	SelectionPosition    string    `json:"selection_position"`
+	DistanceTolerence    float64   `json:"distance_tolerence"`
+	NumRunners           string    `json:"num_runners"`
+	NumbeRuns            int       `json:"number_runs"`
+	PreferredDistance    float64   `json:"prefered_distance"`
+	CurrentDistance      float64   `json:"current_distance"`
+	PotentialReturn      string    `json:"potential_return"`
+	CurrentEventPrice    string    `json:"current_event_price"`
+	CurrentEventPosition string    `json:"current_event_position"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 type EventPredictionResponse struct {
@@ -223,7 +222,9 @@ type EventPredictionResponse struct {
 
 type GetWinnerParams struct {
 	EventDate   string  `json:"event_date"`
-	Delta       int `json:"delta"`
-	AvgPosition int `json:"avg_position"`
-	TotalRuns   int     `json:"total_runs"`
+	Delta       string  `json:"delta"`
+	AvgPosition string  `json:"avg_position"`
+	TotalRuns   string  `json:"total_runs"`
+	Stake       float64 `json:"stake"`
+	MeetingName string  `json:"meeting_name"`
 }
